@@ -1,0 +1,14 @@
+include(default)
+
+[settings]
+compiler=clang
+compiler.version=18
+compiler.cppstd=20
+compiler.libcxx=libstdc++11
+
+[buildenv]
+CC=clang
+CXX=clang++
+
+[conf]
+tools.build:compiler_executables={"c": "clang", "cpp": "clang++"}

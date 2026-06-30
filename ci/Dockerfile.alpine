@@ -1,0 +1,66 @@
+# Dockerfile for CI images based on alpine:edge
+#
+# This file contains 2 targets: `gcc` and `full`.
+#   - `gcc`: Contains only GCC and related tools.
+#     It is meant for quick checks in CI.
+#   - `full`: Adds Clang and related tools on top of `gcc`.
+#     It is meant for testing all variants of builds.
+
+
+# The base stage with only GCC and related tools.
+FROM alpine:edge AS gcc
+
+# Install system dependencies:
+#   - GCC: gcc, g++, 
+#   - Generator: ninja-build, ninja-is-really-ninja
+#   - For conan and gcovr: pipx
+#   - coverage: gcovr; gcov (shipped with gcc)
+#   - misc: wget, ca-certificates (for downloading via https)
+RUN apk add --no-cache \
+    gcc \
+    g++ \
+    ninja-build \
+    ninja-is-really-ninja \
+    pipx \
+    python3 \
+    gcovr \
+    wget \
+    ca-certificates
+
+# Ensure pipx executables are on the default PATH
+ENV PIPX_BIN_DIR=/usr/local/bin
+
+# Install CMake >= 4.3.2 and Conan 2 via pipx.
+# CMake is installed via pipx to ensure a recent version is available.
+RUN pipx install "cmake~=4.3.2" \
+    && pipx install "conan~=2.29"
+
+# Install `just` command runner (https://github.com/casey/just)
+# The musl binary is used since Alpine uses musl libc.
+RUN JUST_ARCH=$(uname -m) \
+    && wget -q "https://github.com/casey/just/releases/download/1.51.0/just-1.51.0-${JUST_ARCH}-unknown-linux-musl.tar.gz" \
+    && tar -xzf "just-1.51.0-${JUST_ARCH}-unknown-linux-musl.tar.gz" -C /usr/local/bin just \
+    && rm "just-1.51.0-${JUST_ARCH}-unknown-linux-musl.tar.gz"
+
+# Detect Conan profile (creates ~/.conan2/profiles/default)
+RUN conan profile detect --force
+
+
+# Add Clang and related tools on top of `gcc`.
+FROM gcc AS full
+
+# Install Clang and related tools:
+#   - clang22-extra-tools for clang-scan-deps.
+#   - llvm22 for llvm-cov.
+RUN apk add --no-cache \
+    clang22 \
+    clang22-extra-tools \
+    compiler-rt \
+    llvm22
+
+# Alpine's LLVM packages install versioned binaries (e.g. llvm22-cov).
+# Create unversioned symlinks so plain `llvm-cov` works.
+RUN ln -s /usr/bin/llvm22-cov /usr/local/bin/llvm-cov
+
+# Detect Conan profile (creates ~/.conan2/profiles/default)
+RUN conan profile detect --force

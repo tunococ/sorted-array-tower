@@ -1,0 +1,2 @@
+include(clang)
+include(ninja-debug)

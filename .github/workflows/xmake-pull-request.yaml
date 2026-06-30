@@ -1,0 +1,116 @@
+name: xmake PR
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Prepare Docker image
+        uses: docker/build-push-action@v7
+        with:
+          context: ci/
+          file: ci/Dockerfile.alpine-xmake
+          target: gcc
+          load: true
+          tags: tyghbn:${{ github.head_ref }}
+          cache-from: |
+            type=gha,scope=pull-request-xmake
+            type=gha,scope=post-merge-xmake
+          cache-to: type=gha,mode=max,scope=pull-request-xmake
+
+      - name: Run tests and generate reports
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            --workdir /workspace \
+            --entrypoint /bin/sh \
+            tyghbn:${{ github.head_ref }} \
+            -c "xmake reports"
+
+      - name: Package reports
+        run: |
+          sudo mkdir -p reports/coverage
+          sudo mv build/test-report.xml reports
+          sudo mv build/test-report.txt reports
+          sudo mv build/coverage_report/cobertura.xml reports/coverage
+          sudo mv build/coverage_report/summary.md reports/coverage
+          sudo mv build/coverage_report/summary.txt reports/coverage
+
+      - name: Upload reports
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: reports-xmake
+          path: reports
+          retention-days: 7
+  
+  summarize-reports:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    permissions:
+      checks: write
+      statuses: write
+    if: '!cancelled()'
+    steps:
+      - name: Download reports
+        uses: actions/download-artifact@v7
+        with:
+          name: reports-xmake
+
+      - name: Convert JUnit XML to markdown
+        uses: test-summary/action@v2
+        with:
+          paths: test-report.xml
+          output: test-report.md
+
+      - name: Summarize test report
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "# Test results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          cat test-report.md >> $GITHUB_STEP_SUMMARY
+
+          SUMMARY=$(tac test-report.txt | grep -m 1 -i "% test")
+
+          # Set a commit status as the summary
+          gh api --method POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2026-03-10" \
+            /repos/${{ github.repository }}/statuses/${{ github.sha }} \
+            -f state='success' \
+            -f context='xmake PR tests' \
+            -f description="${SUMMARY}" \
+            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+      - name: Summarize coverage report
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          REPORT_MD=$(cat coverage/summary.md)
+          REPORT_TXT=$(cat coverage/summary.txt)
+          SUMMARY=$(cat coverage/summary.txt | tr '\n' ' ')
+
+          # Put the coverage report in the step summary
+          cat coverage/summary.md >> $GITHUB_STEP_SUMMARY
+
+          # Set a commit status as the summary
+          gh api --method POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2026-03-10" \
+            /repos/${{ github.repository }}/statuses/${{ github.sha }} \
+            -f state='success' \
+            -f context='xmake PR coverage' \
+            -f description="${SUMMARY}" \
+            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

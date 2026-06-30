@@ -1,0 +1,65 @@
+# Docker Compose for developing and testing with CI images.
+#
+# Usage (all commands should be run from the `ci/` directory):
+#
+#   # Build the image(s) using the default (Alpine-based) images
+#   docker compose build gcc
+#   docker compose build full
+#
+#   # Build using Ubuntu-based images instead
+#   VARIANT=ubuntu docker compose build gcc
+#   VARIANT=ubuntu docker compose build full
+#
+#   # Build, copy the repo into a container, and start an interactive shell:
+#   docker compose run --rm gcc
+#   docker compose run --rm full
+#
+#   # Run a specific command directly inside a fresh container:
+#   docker compose run --rm gcc just ba ta
+#   docker compose run --rm gcc ls /workspace
+#
+# The repo is temporarily mounted at /host-workspace, then copied into
+# /workspace by the entrypoint. This gives you a snapshot of the source
+# code without a live bind mount.
+
+name: tyghbn-${VARIANT:-alpine}
+
+services:
+
+  # GCC-only variant: lightweight, for quick checks.
+  gcc:
+    build:
+      context: .
+      dockerfile: Dockerfile.${VARIANT:-alpine}
+      target: gcc
+    working_dir: /workspace
+    volumes:
+      - ..:/host-workspace
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        cp -r /host-workspace/. /workspace
+        rm -rf /workspace/build /workspace/CMakeUserPresets.json /workspace/.xmake
+        exec "$@"
+      - /bin/sh
+    command: /bin/sh
+
+  # Full variant: includes Clang on top of GCC, for testing all variants.
+  full:
+    build:
+      context: .
+      dockerfile: Dockerfile.${VARIANT:-alpine}
+      target: full
+    working_dir: /workspace
+    volumes:
+      - ..:/host-workspace
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        cp -r /host-workspace/. /workspace
+        rm -rf /workspace/build /workspace/CMakeUserPresets.json /workspace/.xmake
+        exec "$@"
+      - /bin/sh
+    command: /bin/sh

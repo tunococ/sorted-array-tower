@@ -1,0 +1,4 @@
+include(ninja)
+
+[settings]
+build_type=Release

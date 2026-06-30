@@ -1,0 +1,84 @@
+# Dockerfile for CI images based on ubuntu:resolute.
+#
+# This file contains 2 targets: `gcc` and `full`.
+#   - `gcc`: Contains only GCC and related tools.
+#     It is meant for quick checks in CI.
+#   - `full`: Adds Clang and related tools on top of `gcc`.
+#     It is meant for testing all variants of builds.
+
+
+# The base stage with only GCC and related tools.
+FROM ubuntu:resolute AS gcc
+
+# Install system dependencies
+#   - compilers: gcc-15, g++-15
+#   - build tools: ninja-build
+#   - pipx
+#   - coverage: gcovr; gcov (shipped with gcc-15)
+#   - misc: wget, ca-certificates (for downloading via https)
+RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
+    # GCC
+    gcc-15 \
+    g++-15 \
+    # Build tools
+    ninja-build \
+    # pipx (for Conan, cmake)
+    pipx \
+    # Coverage tools
+    gcovr \
+    # Utilities
+    wget \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Register GCC 15 the default GCC version.
+RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-15 100 \
+    && update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-15 100 \
+    && update-alternatives --install /usr/bin/gcov gcov /usr/bin/gcov-15 100
+
+# Ensure pipx executables are on the default PATH
+ENV PIPX_BIN_DIR=/usr/local/bin
+
+# Install CMake >= 4.3.2 and Conan 2 via pipx.
+# Ubuntu 25.04 ships cmake 3.31.6, but this project requires 4.3.2+.
+RUN pipx install "cmake~=4.3.2" \
+    && pipx install "conan~=2.29"
+
+# Install `just` command runner (https://github.com/casey/just)
+RUN JUST_ARCH=$(uname -m) \
+    && wget -q "https://github.com/casey/just/releases/download/1.51.0/just-1.51.0-${JUST_ARCH}-unknown-linux-musl.tar.gz" \
+    && tar -xzf "just-1.51.0-${JUST_ARCH}-unknown-linux-musl.tar.gz" -C /usr/local/bin just \
+    && rm "just-1.51.0-${JUST_ARCH}-unknown-linux-musl.tar.gz"
+
+# Detect Conan profile (creates ~/.conan2/profiles/default)
+RUN conan profile detect --force
+
+
+FROM gcc AS full
+
+# Install system dependencies
+#   - llvm-cov (shipped with llvm-20)
+#   - compilers: gcc-15, g++-15, clang-20, clang++-20, clang-scan-deps-20
+#   - build tools: ninja-build, make
+#   - pipx (for installing Python-based tools like Conan in isolated environments)
+#   - coverage: gcovr; gcov (shipped with gcc-15), llvm-cov (shipped with llvm-20)
+#   - misc: wget, ca-certificates (for downloading via https)
+RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
+    # Compilers
+    clang-20 \
+    libclang-20-dev \
+    # Clang runtime libraries (for sanitizers, etc.)
+    libclang-rt-20-dev \
+    # Extra Clang tools (includes clang-scan-deps for C++ module support)
+    clang-tools-20 \
+    # Coverage tools
+    llvm-20 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN update-alternatives --install /usr/bin/clang clang /usr/bin/clang-20 100 \
+    && update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-20 100 \
+    && update-alternatives --install /usr/bin/clang-scan-deps clang-scan-deps /usr/bin/clang-scan-deps-20 100 \
+    && update-alternatives --install /usr/bin/llvm-cov llvm-cov /usr/bin/llvm-cov-20 100
+
+# Detect Conan profile (creates ~/.conan2/profiles/default)
+RUN conan profile detect --force

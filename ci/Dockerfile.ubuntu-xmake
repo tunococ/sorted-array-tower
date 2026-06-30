@@ -1,0 +1,68 @@
+# Dockerfile for CI images based on ubuntu:resolute.
+#
+# This file contains 2 targets: `gcc` and `full`.
+#   - `gcc`: Contains only GCC and related tools.
+#     It is meant for quick checks in CI.
+#   - `full`: Adds Clang and related tools on top of `gcc`.
+#     It is meant for testing all variants of builds.
+
+
+# The base stage with only GCC and related tools.
+FROM ubuntu:resolute AS gcc
+
+# Install system dependencies
+#   - gcc-15, g++-15
+#   - xmake
+#   - git (needed by xmake for package deps)
+#   - pipx (for and gcovr)
+#   - wget, ca-certificates (for downloading via https)
+RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
+    gcc-15 \
+    g++-15 \
+    xmake \
+    git \
+    pipx \
+    wget \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Register GCC 15 as the default GCC.
+RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-15 100 \
+    && update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-15 100 \
+    && update-alternatives --install /usr/bin/gcov gcov /usr/bin/gcov-15 100
+
+# Ensure pipx executables are on the default PATH
+ENV PIP_NO_CACHE_DIR=1 \
+    PIPX_BIN_DIR=/usr/local/bin
+
+# Install gcovr >= 8.4 via pipx.
+RUN pipx install "gcovr~=8.4"
+
+# Ensure xmake can run as root in CI containers
+ENV XMAKE_ROOT=y
+
+
+# The full stage with GCC and Clang.
+FROM gcc AS full
+
+# Install Clang and related tools
+#   - clang-20, clang++-20
+#   - clang-tools-20 (for clang-scan-deps)
+#   - llvm-20 (for llvm-cov)
+RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends \
+    # Compilers
+    clang-20 \
+#    libclang-20-dev \
+    # Clang runtime libraries (for sanitizers, etc.)
+    libclang-rt-20-dev \
+    # Extra Clang tools (for clang-scan-deps)
+    clang-tools-20 \
+    # Coverage tools
+    llvm-20 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Register Clang 20 as the default Clang.
+RUN update-alternatives --install /usr/bin/clang clang /usr/bin/clang-20 100 \
+    && update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-20 100 \
+    && update-alternatives --install /usr/bin/clang-scan-deps clang-scan-deps /usr/bin/clang-scan-deps-20 100 \
+    && update-alternatives --install /usr/bin/llvm-cov llvm-cov /usr/bin/llvm-cov-20 100

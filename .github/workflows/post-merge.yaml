@@ -1,0 +1,73 @@
+name: post merge
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+
+  # TODO: Remove this block and the related file if you are not using CMake.
+  # Also, remove `cmake-check-builds` from the two `needs` lines below.
+  cmake-check-builds:
+    uses: ./.github/workflows/cmake-check-builds.yaml
+
+  # TODO: Remove this block and the related file if you are not using Xmake.
+  # Also, remove `xmake-check-builds` from the two `needs` lines below.
+  xmake-check-builds:
+    uses: ./.github/workflows/xmake-check-builds.yaml
+
+  tag-stable:
+    # TODO: Remove the job for the build system that you don't want to use.
+    needs: [cmake-check-builds, xmake-check-builds]
+    if: success()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Update stable tag to latest passing commit
+        run: |
+          git tag --force stable
+          git push --force origin stable
+
+  report-failure:
+    # TODO: Remove the job for the build system that you don't want to use.
+    needs: [cmake-check-builds, xmake-check-builds]
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Create alert issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_URL=$(gh pr list \
+            --repo "${{ github.repository }}" \
+            --state merged \
+            --limit 1 \
+            --json url \
+            --template '{{range .}}{{.url}}{{end}}')
+
+          ISSUE_BODY="**Post-Merge Checks** [failed]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID).
+
+          Commit: $GITHUB_SHA
+          Branch: ${GITHUB_REF#refs/heads/}"
+
+          if [ -n "$PR_URL" ]; then
+            ISSUE_BODY="$ISSUE_BODY
+          Associated PR: $PR_URL"
+          fi
+
+          ISSUE_BODY="$ISSUE_BODY
+
+          Check the [workflow run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID) for details."
+
+          gh issue create \
+            --repo "${{ github.repository }}" \
+            --title "Post-merge checks failed on ${GITHUB_SHA:0:7}" \
+            --body "$ISSUE_BODY"

@@ -1,0 +1,45 @@
+# Dockerfile for CI images based on alpine:edge
+#
+# This file contains 2 targets: `gcc` and `full`.
+#   - `gcc`: Contains only GCC and related tools.
+#     It is meant for quick checks in CI.
+#   - `full`: Adds Clang and related tools on top of `gcc`.
+#     It is meant for testing all variants of builds.
+
+
+# The base stage with only GCC and related tools.
+FROM alpine:edge AS gcc
+
+# Install system dependencies:
+#   - GCC: gcc, g++
+#   - Build system: xmake
+#   - VCS: git (needed by xmake for package deps)
+#   - coverage: gcovr; gcov (shipped with gcc)
+#   - misc: wget, ca-certificates (for downloading via https)
+RUN apk add --no-cache \
+    gcc \
+    g++ \
+    xmake \
+    git \
+    gcovr \
+    p7zip \
+    wget \
+    ca-certificates
+
+ENV XMAKE_ROOT=y
+
+# Add Clang and related tools on top of `gcc`.
+FROM gcc AS full
+
+# Install Clang and related tools:
+#   - clang22-extra-tools for clang-scan-deps.
+#   - llvm22 for llvm-cov.
+RUN apk add --no-cache \
+    clang22 \
+    clang22-extra-tools \
+    compiler-rt \
+    llvm22
+
+# Alpine's LLVM packages install versioned binaries (e.g. llvm22-cov).
+# Create unversioned symlinks so plain `llvm-cov` works.
+RUN ln -s /usr/bin/llvm22-cov /usr/local/bin/llvm-cov
