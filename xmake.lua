@@ -1,4 +1,4 @@
-set_project("tyghbn")
+set_project("sorted_array_tower")
 set_version("1.0.0")
 set_xmakever("2.8.7")
 
@@ -66,7 +66,7 @@ target("or_else")
     else
         set_kind("headeronly")
     end
-    add_headerfiles("include/(tyghbn/or_else.hpp)")
+    add_headerfiles("include/(sorted_array_tower/or_else.hpp)")
     add_includedirs("include", { public = true })
 
 target("add_one")
@@ -75,20 +75,20 @@ target("add_one")
         -- .cppm interface files must be made public.
         add_files("modules/add_one.cppm", { public = true })
     end
-    add_headerfiles("include/(tyghbn/add_one.hpp)")
+    add_headerfiles("include/(sorted_array_tower/add_one.hpp)")
     add_includedirs("include", { public = true })
     add_files("src/add_one.cpp")
 
-target("tyghbn")
+target("sorted_array_tower")
     if has_config("use_modules") then
         set_kind("static")
         -- .cppm interface files must be made public.
-        add_files("modules/tyghbn.cppm", { public = true })
+        add_files("modules/sorted_array_tower.cppm", { public = true })
     else
         set_kind("headeronly")
     end
     add_deps("or_else", "add_one")
-    add_headerfiles("include/(tyghbn/tyghbn.hpp)")
+    add_headerfiles("include/(sorted_array_tower/sorted_array_tower.hpp)")
     add_includedirs("include", { public = true })
 
 target("tests")
@@ -99,9 +99,9 @@ target("tests")
         "tests/test_add_one.cpp",
         "tests/test_or_else.cpp"
     )
-    add_deps("tyghbn")
+    add_deps("sorted_array_tower")
     if has_config("use_modules") then
-        add_defines("TYGHBN_USE_MODULES=1")
+        add_defines("SORTED_ARRAY_TOWER_USE_MODULES=1")
     end
 
     -- Uses the project root as the working directory
@@ -115,9 +115,9 @@ target("benchmarks")
     add_files(
         "benchmarks/benchmark_main.cpp"
     )
-    add_deps("tyghbn")
+    add_deps("sorted_array_tower")
     if has_config("use_modules") then
-        add_defines("TYGHBN_USE_MODULES=1")
+        add_defines("SORTED_ARRAY_TOWER_USE_MODULES=1")
     end
     if is_plat("linux") and not has_config("has_linux_version_h") then
         add_defines("ANKERL_NANOBENCH_DISABLE_PERF_COUNTERS=1")

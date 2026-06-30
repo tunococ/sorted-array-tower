@@ -3,30 +3,30 @@
 
 #include <string>
 
-#if TYGHBN_USE_MODULES
-import tyghbn;
+#if SORTED_ARRAY_TOWER_USE_MODULES
+import sorted_array_tower;
 #else
-#include <tyghbn/add_one.hpp>
-#include <tyghbn/or_else.hpp>
+#include <sorted_array_tower/add_one.hpp>
+#include <sorted_array_tower/or_else.hpp>
 #endif
 
 int main() {
     ankerl::nanobench::Bench bench;
 
     bench.run("add_one<int>", [] {
-        volatile auto r = tyghbn::add_one(42);
+        volatile auto r = sorted_array_tower::add_one(42);
     });
 
     bench.run("add_one<double>", [] {
-        volatile auto r = tyghbn::add_one(3.14);
+        volatile auto r = sorted_array_tower::add_one(3.14);
     });
 
     bench.run("or_else<int>", [] {
-        volatile auto r = tyghbn::or_else(2, 1);
+        volatile auto r = sorted_array_tower::or_else(2, 1);
     });
 
     bench.run("or_else<int> with zero", [] {
-        volatile auto r = tyghbn::or_else(0, 1);
+        volatile auto r = sorted_array_tower::or_else(0, 1);
     });
 
     return 0;

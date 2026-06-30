@@ -22,7 +22,7 @@
 # /workspace by the entrypoint. This gives you a snapshot of the source
 # code without a live bind mount.
 
-name: tyghbn-${VARIANT:-alpine}
+name: sorted_array_tower-${VARIANT:-alpine}
 
 services:
 

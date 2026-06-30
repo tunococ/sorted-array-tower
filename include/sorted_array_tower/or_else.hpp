@@ -1,12 +1,12 @@
 /**
  * @file
  * 
- * @brief [tyghbn.or_else](module__tyghbn_8or__else.html)
+ * @brief [sorted_array_tower.or_else](module__sorted_array_tower_8or__else.html)
  */
 
 #pragma once
 
-namespace tyghbn {
+namespace sorted_array_tower {
 
 /**
  * @brief Returns @p x if it is non-zero; otherwise returns @p y.
@@ -21,4 +21,4 @@ T or_else(T x, T y) {
     return x == T(0) ? y : x;
 }
 
-} // namespace tyghbn
+} // namespace sorted_array_tower

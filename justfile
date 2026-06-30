@@ -22,7 +22,7 @@ create-docker variant='alpine' stage='full' name=(variant + '-' + stage) \
         run -d --name {{ name }} {{ stage }} {{ args }}
 
 # Remove Docker images matching a given prefix.
-clean-docker-images prefix='tyghbn-':
+clean-docker-images prefix='sorted_array_tower-':
     docker rmi $(docker images --format '{{{{.Repository}}:{{{{.Tag}}' | \
         grep '^{{ prefix }}') 2>/dev/null || true
 

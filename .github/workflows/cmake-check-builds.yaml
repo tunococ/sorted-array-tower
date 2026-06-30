@@ -25,7 +25,7 @@ jobs:
           file: ci/Dockerfile.${{ matrix.variant }}
           target: full
           load: true
-          tags: tyghbn:post-merge-${{ matrix.variant }}-${{ github.sha }}
+          tags: sorted_array_tower:post-merge-${{ matrix.variant }}-${{ github.sha }}
           cache-from: type=gha,scope=post-merge
           cache-to: type=gha,mode=max,scope=post-merge
 
@@ -35,5 +35,5 @@ jobs:
             -v "${{ github.workspace }}:/workspace" \
             --workdir /workspace \
             --entrypoint /bin/sh \
-            tyghbn:post-merge-${{ matrix.variant }}-${{ github.sha }} \
+            sorted_array_tower:post-merge-${{ matrix.variant }}-${{ github.sha }} \
             -c "just check-builds"

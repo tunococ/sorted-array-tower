@@ -1,13 +1,13 @@
 module;
 
-#include <tyghbn/or_else.hpp>
+#include <sorted_array_tower/or_else.hpp>
 
 /**
  * @brief Module interface for [or_else.hpp](@ref or_else.hpp).
  */
-export module tyghbn.or_else;
+export module sorted_array_tower.or_else;
 
-export namespace tyghbn {
+export namespace sorted_array_tower {
   // All names to be made public must be re-exported here explicitly.
-  using tyghbn::or_else;
+  using sorted_array_tower::or_else;
 }

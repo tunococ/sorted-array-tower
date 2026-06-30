@@ -10,8 +10,8 @@ init build_type compiler='gcc' coverage='cov' modules='mod' sanitize='':
         -pr .pr/{{ build_type }} \
         -o '&:use_modules={{ if modules =~ 'mod' { 'True' } else { 'False' } }}'
     cmake --preset conan-{{ build_type }} \
-        -DTYGHBN_ENABLE_COVERAGE={{ if coverage =~ 'cov' { 'ON' } else { 'OFF' } }} \
-        {{ if sanitize != '' { '-DTYGHBN_SANITIZE=' + sanitize } else { '' } }}
+        -DSORTED_ARRAY_TOWER_ENABLE_COVERAGE={{ if coverage =~ 'cov' { 'ON' } else { 'OFF' } }} \
+        {{ if sanitize != '' { '-DSORTED_ARRAY_TOWER_SANITIZE=' + sanitize } else { '' } }}
 
 # Initialize single-config build for all build types
 init-single compiler='gcc' coverage='cov' modules='mod' sanitize='':
@@ -28,8 +28,8 @@ initm build_type compiler='gcc' coverage='cov' modules='mod' sanitize='':
         -pr .pr/{{ build_type }} \
         -o '&:use_modules={{ if modules =~ 'mod' { 'True' } else { 'False' } }}'
     cmake --preset conan-default \
-        -DTYGHBN_ENABLE_COVERAGE={{ if coverage =~ 'cov' { 'ON' } else { 'OFF' } }} \
-        {{ if sanitize != '' { '-DTYGHBN_SANITIZE=' + sanitize } else { '' } }}
+        -DSORTED_ARRAY_TOWER_ENABLE_COVERAGE={{ if coverage =~ 'cov' { 'ON' } else { 'OFF' } }} \
+        {{ if sanitize != '' { '-DSORTED_ARRAY_TOWER_SANITIZE=' + sanitize } else { '' } }}
 
 # Initialize multi-config build for all build types
 init-multi compiler='gcc' coverage='cov' modules='mod' sanitize='':
@@ -118,7 +118,7 @@ benchmark build_type='release' *args:
             } else {
                 'Debug'
             } \
-        }}/benchmark_tyghbn {{ args }}
+        }}/benchmark_sorted_array_tower {{ args }}
 
 bmd: (benchmark 'debug')
 

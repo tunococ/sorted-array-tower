@@ -1,14 +1,14 @@
 /**
  * @file
  * 
- * @brief [module tyghbn.add_one](module__tyghbn_8add__one.html)
+ * @brief [module sorted_array_tower.add_one](module__sorted_array_tower_8add__one.html)
  */
 
 #pragma once
 
 #include <string>
 
-namespace tyghbn {
+namespace sorted_array_tower {
 
 /**
  * @brief Adds 1 to the input value.
@@ -27,4 +27,4 @@ template <>
 std::string add_one(std::string x);
 /// @endcond
 
-} // namespace tyghbn
+} // namespace sorted_array_tower

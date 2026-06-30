@@ -1,20 +1,20 @@
 cmake_minimum_required(VERSION 4.0.2)
-project(tyghbn
+project(sorted_array_tower
   VERSION 1.0.0
   DESCRIPTION "A C++ utility library providing simple template functions"
   LANGUAGES CXX
 )
 
 # Option for building with modules (C++20 modules support)
-option(TYGHBN_USE_MODULES "Use C++20 modules instead of headers" OFF)
+option(SORTED_ARRAY_TOWER_USE_MODULES "Use C++20 modules instead of headers" OFF)
 
-if(TYGHBN_USE_MODULES)
+if(SORTED_ARRAY_TOWER_USE_MODULES)
   if(NOT CMAKE_GENERATOR STREQUAL "Ninja" AND
     NOT CMAKE_GENERATOR STREQUAL "Ninja Multi-Config" AND
     NOT CMAKE_GENERATOR MATCHES "Visual Studio")
     message(WARNING "${CMAKE_GENERATOR} does not support C++ modules")
     message(WARNING "Configuring for building ${PROJECT_NAME} without C++ modules")
-    set(TYGHBN_USE_MODULES OFF CACHE BOOL "Use C++20 modules instead of headers" FORCE)
+    set(SORTED_ARRAY_TOWER_USE_MODULES OFF CACHE BOOL "Use C++20 modules instead of headers" FORCE)
   else()
     message(STATUS "Configuring for building ${PROJECT_NAME} with C++ modules")
   endif()
@@ -54,11 +54,11 @@ add_library(or_else-legacy INTERFACE)
 target_sources(or_else-legacy
   INTERFACE
     FILE_SET HEADERS
-      FILES include/tyghbn/or_else.hpp
+      FILES include/sorted_array_tower/or_else.hpp
       BASE_DIRS include
 )
 
-if(NOT TYGHBN_USE_MODULES)
+if(NOT SORTED_ARRAY_TOWER_USE_MODULES)
   # For the non-C++-module version, we simply define a passthrough library
   # because or_else-legacy is already a valid library.
   add_library(or_else INTERFACE)
@@ -92,13 +92,13 @@ add_library(add_one-legacy)
 target_sources(add_one-legacy
   PUBLIC
     FILE_SET HEADERS
-      FILES include/tyghbn/add_one.hpp
+      FILES include/sorted_array_tower/add_one.hpp
       BASE_DIRS include
   PRIVATE
     src/add_one.cpp
 )
 
-if(NOT TYGHBN_USE_MODULES)
+if(NOT SORTED_ARRAY_TOWER_USE_MODULES)
   # For the non-C++-module version, we simply define a passthrough library
   # because add_one-legacy is already a valid library.
   add_library(add_one INTERFACE)
@@ -127,49 +127,49 @@ endif()
 ### TEMPLATE_BLOCK: Umbrella library
 #
 # "All" target that includes all libraries above.
-add_library(tyghbn-legacy INTERFACE)
-target_sources(tyghbn-legacy
+add_library(sorted_array_tower-legacy INTERFACE)
+target_sources(sorted_array_tower-legacy
   INTERFACE
     FILE_SET HEADERS
-      FILES include/tyghbn/tyghbn.hpp
+      FILES include/sorted_array_tower/sorted_array_tower.hpp
       BASE_DIRS include
 )
 # Put all the libraries to include.
-target_link_libraries(tyghbn-legacy
+target_link_libraries(sorted_array_tower-legacy
   INTERFACE
     or_else
     add_one
 )
 
-if(NOT TYGHBN_USE_MODULES)
+if(NOT SORTED_ARRAY_TOWER_USE_MODULES)
   # For the non-C++-module version, we simply define a passthrough library
-  # because tyghbn-legacy is already a valid library.
-  add_library(tyghbn INTERFACE)
-  target_link_libraries(tyghbn
+  # because sorted_array_tower-legacy is already a valid library.
+  add_library(sorted_array_tower INTERFACE)
+  target_link_libraries(sorted_array_tower
     INTERFACE
-      tyghbn-legacy
+      sorted_array_tower-legacy
   )
 else()
   # For the C++-module version, we add the module interface file that
   # re-exports all of its submodules.
-  add_library(tyghbn)
-  target_compile_features(tyghbn PUBLIC cxx_std_20)
-  target_link_libraries(tyghbn
+  add_library(sorted_array_tower)
+  target_compile_features(sorted_array_tower PUBLIC cxx_std_20)
+  target_link_libraries(sorted_array_tower
     PUBLIC
-      tyghbn-legacy
+      sorted_array_tower-legacy
   )
   # Add an extra cppm file that provides a better way to include submodules via
   # `export import`.
-  target_sources(tyghbn
+  target_sources(sorted_array_tower
     PUBLIC
       FILE_SET CXX_MODULES
-        FILES modules/tyghbn.cppm
+        FILES modules/sorted_array_tower.cppm
   )
-  # Note that this umbrella module does not really need tyghbn.hpp if it is
-  # only used via `import` as tyghbn.cppm does not include tyghbn.hpp, but we
-  # include tyghbn.hpp (via linking with tyghbn-legacy) to make this library
+  # Note that this umbrella module does not really need sorted_array_tower.hpp if it is
+  # only used via `import` as sorted_array_tower.cppm does not include sorted_array_tower.hpp, but we
+  # include sorted_array_tower.hpp (via linking with sorted_array_tower-legacy) to make this library
   # support both the header-style usage and the import-style usage.
-  # Additionally, it simplifies CMake code as tyghbn-legacy is itself a valid
+  # Additionally, it simplifies CMake code as sorted_array_tower-legacy is itself a valid
   # library for the non-C++-module case.
 endif()
 ### TEMPLATE_BLOCK_END: Umbrella library
@@ -196,30 +196,30 @@ if(PROJECT_IS_TOP_LEVEL AND NOT (DEFINED BUILD_TESTING AND NOT BUILD_TESTING))
     enable_testing()
 
     # Create a test executable target
-    add_executable(test_tyghbn)
+    add_executable(test_sorted_array_tower)
 
-    # Pass the TYGHBN_USE_MODULES flag to the test code
-    if(TYGHBN_USE_MODULES)
-      target_compile_definitions(test_tyghbn
+    # Pass the SORTED_ARRAY_TOWER_USE_MODULES flag to the test code
+    if(SORTED_ARRAY_TOWER_USE_MODULES)
+      target_compile_definitions(test_sorted_array_tower
         PRIVATE
-          TYGHBN_USE_MODULES=1
+          SORTED_ARRAY_TOWER_USE_MODULES=1
       )
     endif()
 
     # Sanitizer configuration
-    if(DEFINED TYGHBN_SANITIZE AND TYGHBN_SANITIZE)
+    if(DEFINED SORTED_ARRAY_TOWER_SANITIZE AND SORTED_ARRAY_TOWER_SANITIZE)
       if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR
         CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-        target_compile_options(test_tyghbn
+        target_compile_options(test_sorted_array_tower
           PRIVATE
-            -fsanitize=${TYGHBN_SANITIZE}
+            -fsanitize=${SORTED_ARRAY_TOWER_SANITIZE}
             -fno-omit-frame-pointer
             -Og -g
             -fno-sanitize-recover=all
         )
-        target_link_options(test_tyghbn
+        target_link_options(test_sorted_array_tower
           PRIVATE
-            -fsanitize=${TYGHBN_SANITIZE}
+            -fsanitize=${SORTED_ARRAY_TOWER_SANITIZE}
         )
         message("${SANITIZER_OPTIONS}")
       else()
@@ -233,58 +233,58 @@ if(PROJECT_IS_TOP_LEVEL AND NOT (DEFINED BUILD_TESTING AND NOT BUILD_TESTING))
     ### TEMPLATE_BLOCK: Test library finalization
     #
     # Link the test executable to the test library
-    target_link_libraries(test_tyghbn
+    target_link_libraries(test_sorted_array_tower
       PRIVATE
         doctest::doctest
     )
 
     # Create test targets
-    doctest_discover_tests(test_tyghbn)
+    doctest_discover_tests(test_sorted_array_tower)
     ### TEMPLATE_BLOCK_END: Test library finalization
 
 
     # Code coverage report generation
-    option(TYGHBN_ENABLE_COVERAGE "Enable code coverage instrumentation" OFF)
-    if(TYGHBN_ENABLE_COVERAGE)
+    option(SORTED_ARRAY_TOWER_ENABLE_COVERAGE "Enable code coverage instrumentation" OFF)
+    if(SORTED_ARRAY_TOWER_ENABLE_COVERAGE)
       if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-        target_compile_options(test_tyghbn PRIVATE --coverage -O0 -g)
-        target_link_options(test_tyghbn PRIVATE --coverage)
+        target_compile_options(test_sorted_array_tower PRIVATE --coverage -O0 -g)
+        target_link_options(test_sorted_array_tower PRIVATE --coverage)
 
         find_program(GCOVR gcovr)
 
         if(GCOVR)
           if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-            find_program(TYGHBN_LLVM_COV llvm-cov)
-            if(TYGHBN_LLVM_COV)
-              set(TYGHBN_GCOV_EXECUTABLE "${TYGHBN_LLVM_COV} gcov")
+            find_program(SORTED_ARRAY_TOWER_LLVM_COV llvm-cov)
+            if(SORTED_ARRAY_TOWER_LLVM_COV)
+              set(SORTED_ARRAY_TOWER_GCOV_EXECUTABLE "${SORTED_ARRAY_TOWER_LLVM_COV} gcov")
             else()
               message(WARNING "llvm-cov not found — coverage target will not be created")
-              set(TYGHBN_ENABLE_COVERAGE OFF)
+              set(SORTED_ARRAY_TOWER_ENABLE_COVERAGE OFF)
             endif()
           else()
-            set(TYGHBN_GCOV_EXECUTABLE gcov)
+            set(SORTED_ARRAY_TOWER_GCOV_EXECUTABLE gcov)
           endif()
 
-          if(TYGHBN_ENABLE_COVERAGE)
-            set(TYGHBN_BUILD_DIR "$<TARGET_FILE_DIR:test_tyghbn>")
+          if(SORTED_ARRAY_TOWER_ENABLE_COVERAGE)
+            set(SORTED_ARRAY_TOWER_BUILD_DIR "$<TARGET_FILE_DIR:test_sorted_array_tower>")
             add_custom_target(coverage
-              COMMAND $<TARGET_FILE:test_tyghbn>
-              COMMAND ${CMAKE_COMMAND} -E make_directory "${TYGHBN_BUILD_DIR}/coverage_report"
+              COMMAND $<TARGET_FILE:test_sorted_array_tower>
+              COMMAND ${CMAKE_COMMAND} -E make_directory "${SORTED_ARRAY_TOWER_BUILD_DIR}/coverage_report"
               COMMAND ${GCOVR} --root ${CMAKE_SOURCE_DIR}
                 --txt
-                "${TYGHBN_BUILD_DIR}/coverage_report/report.txt"
+                "${SORTED_ARRAY_TOWER_BUILD_DIR}/coverage_report/report.txt"
                 --html-details
-                "${TYGHBN_BUILD_DIR}/coverage_report/index.html"
+                "${SORTED_ARRAY_TOWER_BUILD_DIR}/coverage_report/index.html"
                 --cobertura
-                "${TYGHBN_BUILD_DIR}/coverage_report/cobertura.xml"
+                "${SORTED_ARRAY_TOWER_BUILD_DIR}/coverage_report/cobertura.xml"
                 --markdown
-                "${TYGHBN_BUILD_DIR}/coverage_report/summary.md"
+                "${SORTED_ARRAY_TOWER_BUILD_DIR}/coverage_report/summary.md"
                 --exclude "${CMAKE_SOURCE_DIR}/tests/"
-                --gcov-executable "${TYGHBN_GCOV_EXECUTABLE}"
+                --gcov-executable "${SORTED_ARRAY_TOWER_GCOV_EXECUTABLE}"
                 --txt-summary >
-                "${TYGHBN_BUILD_DIR}/coverage_report/summary.txt"
-              WORKING_DIRECTORY "${TYGHBN_BUILD_DIR}"
-              COMMENT "Generating code coverage report in ${TYGHBN_BUILD_DIR}/coverage_report"
+                "${SORTED_ARRAY_TOWER_BUILD_DIR}/coverage_report/summary.txt"
+              WORKING_DIRECTORY "${SORTED_ARRAY_TOWER_BUILD_DIR}"
+              COMMENT "Generating code coverage report in ${SORTED_ARRAY_TOWER_BUILD_DIR}/coverage_report"
             )
           endif()
         else()
@@ -305,12 +305,12 @@ if(PROJECT_IS_TOP_LEVEL AND NOT (DEFINED BUILD_TESTING AND NOT BUILD_TESTING))
   if(NOT nanobench_FOUND)
     message(WARNING "nanobench not found - benchmarks will not be built")
   else()
-    add_executable(benchmark_tyghbn)
+    add_executable(benchmark_sorted_array_tower)
 
-    if(TYGHBN_USE_MODULES)
-      target_compile_definitions(benchmark_tyghbn
+    if(SORTED_ARRAY_TOWER_USE_MODULES)
+      target_compile_definitions(benchmark_sorted_array_tower
         PRIVATE
-          TYGHBN_USE_MODULES=1
+          SORTED_ARRAY_TOWER_USE_MODULES=1
       )
     endif()
 
@@ -321,7 +321,7 @@ if(PROJECT_IS_TOP_LEVEL AND NOT (DEFINED BUILD_TESTING AND NOT BUILD_TESTING))
       include(CheckIncludeFiles)
       check_include_files("linux/version.h" HAS_LINUX_VERSION_H)
       if(NOT HAS_LINUX_VERSION_H)
-        target_compile_definitions(benchmark_tyghbn
+        target_compile_definitions(benchmark_sorted_array_tower
           PRIVATE
             ANKERL_NANOBENCH_DISABLE_PERF_COUNTERS=1
         )
@@ -332,14 +332,14 @@ if(PROJECT_IS_TOP_LEVEL AND NOT (DEFINED BUILD_TESTING AND NOT BUILD_TESTING))
       endif()
     endif()
 
-    target_sources(benchmark_tyghbn
+    target_sources(benchmark_sorted_array_tower
       PRIVATE
         benchmarks/benchmark_main.cpp
     )
 
-    target_link_libraries(benchmark_tyghbn
+    target_link_libraries(benchmark_sorted_array_tower
       PRIVATE
-        tyghbn
+        sorted_array_tower
         nanobench::nanobench
     )
   endif()
@@ -351,8 +351,8 @@ else()
 endif()
 
 # Installation rules
-if(TYGHBN_USE_MODULES)
-  install(TARGETS or_else add_one tyghbn
+if(SORTED_ARRAY_TOWER_USE_MODULES)
+  install(TARGETS or_else add_one sorted_array_tower
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
     RUNTIME DESTINATION bin
@@ -362,7 +362,7 @@ if(TYGHBN_USE_MODULES)
     DESTINATION include
   )
 else()
-  install(TARGETS or_else add_one tyghbn
+  install(TARGETS or_else add_one sorted_array_tower
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
     RUNTIME DESTINATION bin

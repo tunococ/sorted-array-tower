@@ -23,7 +23,7 @@ jobs:
           file: ci/Dockerfile.alpine
           target: gcc
           load: true
-          tags: tyghbn:${{ github.head_ref }}
+          tags: sorted_array_tower:${{ github.head_ref }}
           cache-from: |
             type=gha,scope=pull-request
             type=gha,scope=post-merge
@@ -35,7 +35,7 @@ jobs:
             -v "${{ github.workspace }}:/workspace" \
             --workdir /workspace \
             --entrypoint /bin/sh \
-            tyghbn:${{ github.head_ref }} \
+            sorted_array_tower:${{ github.head_ref }} \
             -c "just make-reports"
 
       - name: Package reports

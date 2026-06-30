@@ -1,4 +1,4 @@
-# tyghbn
+# sorted_array_tower
 
 Repository template for a C++ library package
 
@@ -47,11 +47,11 @@ with the following features:
 ## How to use this template
 
 This repository provides a working example of a C++ library package named
-`Tyghbn`.
+`SortedArrayTower`.
 The main steps to use this template properly are:
 
 1. Pick your build system.
-2. Rename `Tyghbn`, `tyghbn`, and `TYGHBN` to be your project name.
+2. Rename `SortedArrayTower`, `sorted_array_tower`, and `SORTED_ARRAY_TOWER` to be your project name.
 3. Replace the example code with your own code.
 
 ### Build systems
@@ -127,20 +127,20 @@ Remember to clean up all the `TODO:` in
 [`.github/workflows/post-merge.yaml`](.github/workflows/post-merge.yaml)
 accordingly.
 
-### Renaming `tyghbn`
+### Renaming `sorted_array_tower`
 
-This template is for a C++ library package named `Tyghbn`.
+This template is for a C++ library package named `SortedArrayTower`.
 This name was chosen to be easy to type and unique enough to find and replace.
 There are 3 variants of this name that occur in files in this repository:
 
-- `Tyghbn`: Used in [`conanfile.py`](conanfile.py) as a Python class name and
-  in Doxygen comment for the [main page](include/tyghbn/tyghbn.hpp).
-- `TYGHBN`: Used in variable names in scripts and C++ macros.
-- `tyghbn`: Used in C++ code as a namespace name, module names, and header file
+- `SortedArrayTower`: Used in [`conanfile.py`](conanfile.py) as a Python class name and
+  in Doxygen comment for the [main page](include/sorted_array_tower/sorted_array_tower.hpp).
+- `SORTED_ARRAY_TOWER`: Used in variable names in scripts and C++ macros.
+- `sorted_array_tower`: Used in C++ code as a namespace name, module names, and header file
   names.
 
 You should rename these strings with proper variants of your project name in
-all files, as well as rename all files and subdirectories with `tyghbn` in
+all files, as well as rename all files and subdirectories with `sorted_array_tower` in
 their names.
 
 ### Replacing example code with your code
@@ -149,7 +149,7 @@ The example code consists of 3 libraries:
 
 - `or_else`: a binary-less (header-only) library.
 - `add_one`: a normal library.
-- `tyghbn`: an umbrella library that re-exports `or_else` and `add_one`.
+- `sorted_array_tower`: an umbrella library that re-exports `or_else` and `add_one`.
 
 The files for these libraries live in 3 subdirectories:
 
@@ -169,19 +169,19 @@ entities from header files in [`include`](include).
 files:
 
 - [`modules/or_else.cppm`](modules/or_else.cppm) defines
-  `module tyghbn.or_else` that exposes names from
-  [`include/tyghbn/or_else.hpp`](include/tyghbn/or_else.hpp).
+  `module sorted_array_tower.or_else` that exposes names from
+  [`include/sorted_array_tower/or_else.hpp`](include/sorted_array_tower/or_else.hpp).
 - [`modules/add_one.cppm`](modules/add_one.cppm) defines
-  `module tyghbn.add_one` that exposes names from
-  [`include/tyghbn/add_one.hpp`](include/tyghbn/add_one.hpp).
-- [`modules/tyghbn.cppm`](modules/tyghbn.cppm) re-exports names from
-  `module tyghbn.or_else` and `module tyghbn.add_one` under a new module name:
-  `tyghbn`.
+  `module sorted_array_tower.add_one` that exposes names from
+  [`include/sorted_array_tower/add_one.hpp`](include/sorted_array_tower/add_one.hpp).
+- [`modules/sorted_array_tower.cppm`](modules/sorted_array_tower.cppm) re-exports names from
+  `module sorted_array_tower.or_else` and `module sorted_array_tower.add_one` under a new module name:
+  `sorted_array_tower`.
 
-Note that [`modules/tyghbn.cppm`](modules/tyghbn.cppm), which is the umbrella
+Note that [`modules/sorted_array_tower.cppm`](modules/sorted_array_tower.cppm), which is the umbrella
 C++ module interface, does not include
-[`tyghbn.hpp`](include/tyghbn/tyghbn.hpp). Instead, it `imports` the other 2
-`.cppm` files, similar to how [`tyghbn.hpp`](include/tyghbn/tyghbn.hpp)
+[`sorted_array_tower.hpp`](include/sorted_array_tower/sorted_array_tower.hpp). Instead, it `imports` the other 2
+`.cppm` files, similar to how [`sorted_array_tower.hpp`](include/sorted_array_tower/sorted_array_tower.hpp)
 includes the other 2 `.hpp` files.
 
 #### Test code
@@ -308,21 +308,21 @@ Penguin Linux (Debian Forky/SID) with the following software:*
 
 - `add_one`
 - `or_else`
-- `tyghbn`
+- `sorted_array_tower`
 
 Each library
 [target](https://cmake.org/cmake/help/book/mastering-cmake/chapter/Key%20Concepts.html#targets)
-has one header file in [`include/tyghbn`](include/tyghbn)
+has one header file in [`include/sorted_array_tower`](include/sorted_array_tower)
 and one module file in [`modules`](modules) of the same name.
 The header file exposes a traditional interface, while the module file exposes
 a C++ module interface. Note that the directory structure of
-[`modules`](modules) is simpler than [`include/tyghbn`](include/tyghbn) as it
-does not need a nested `tyghbn` inside for disambiguation.
+[`modules`](modules) is simpler than [`include/sorted_array_tower`](include/sorted_array_tower) as it
+does not need a nested `sorted_array_tower` inside for disambiguation.
 
 #### Base `-legacy` library targets
 
 For each of the main library targets, we also have a base `-legacy` library.
-For the non-C++-module case (when `TYGHBN_USE_MODULES` is not `ON`), this is
+For the non-C++-module case (when `SORTED_ARRAY_TOWER_USE_MODULES` is not `ON`), this is
 exactly the same as the main library target. For the C++-module case, a `.cppm`
 file is added on top of the base `-legacy` library.
 
@@ -342,7 +342,7 @@ divergence, which is arguably a historical quirk of CMake.
 The base `-legacy` umbrella target is an `INTERFACE` library because it does
 not add any code on top of its submodules.
 The place you will need to modify is the list of submodules inside
-`target_link_libraries(tyghbn-legacy ...)`.
+`target_link_libraries(sorted_array_tower-legacy ...)`.
 
 #### Test library
 
@@ -350,21 +350,21 @@ This project uses [`doctest`](https://github.com/doctest/doctest) as the test
 library, but you can switch to a different library by modifying the following
 things:
 
-- The function `Tyghbn.requirements()` in [conanfile.py](conanfile.py).
+- The function `SortedArrayTower.requirements()` in [conanfile.py](conanfile.py).
 - CMake code in `TEMPLATE_BLOCK: Test library initialization` and
   `TEMPLATE_BLOCK: Test library finalization` in
   [CMakeLists.txt](CMakeLists.txt).
 
-#### `TYGHBN_USE_MODULES` macro
+#### `SORTED_ARRAY_TOWER_USE_MODULES` macro
 
 To support choosing between compiling for C++ modules or not, a variable named
-`TYGHBN_USE_MODULES` in `CMakeLists.txt` can be set during the
+`SORTED_ARRAY_TOWER_USE_MODULES` in `CMakeLists.txt` can be set during the
 [CMake configure stage](#2-cmake-configure-stage), and it will be passed as a
-macro named `TYGHBN_USE_MODULES` with value `1` C++ code.
+macro named `SORTED_ARRAY_TOWER_USE_MODULES` with value `1` C++ code.
 
 When you call `conan install`, you can specify a Conan option named
-`use_modules`, which will translate to `TYGHBN_USE_MODULES` in CMake.
-This logic lives in `Tyghbn.generate` in [`conanfile.py`](conanfile.py).
+`use_modules`, which will translate to `SORTED_ARRAY_TOWER_USE_MODULES` in CMake.
+This logic lives in `SortedArrayTower.generate` in [`conanfile.py`](conanfile.py).
 
 ### CMake+Conan development workflow
 
@@ -528,7 +528,7 @@ multi-config generator matters.
 #### Coverage information
 
 If you want to generate coverage reports, you must append
-`-DTYGHBN_ENABLE_COVERAGE=ON` to the `cmake --preset` command.
+`-DSORTED_ARRAY_TOWER_ENABLE_COVERAGE=ON` to the `cmake --preset` command.
 See the section [Generating code coverage reports](#generating-code-coverage-reports)
 below for more information.
 
@@ -578,7 +578,7 @@ will run tests for the `Debug` build.
 
 Provided that all the requirements above are met,
 code coverage instrumentation can be generated by adding
-`-DTYGHBN_ENABLE_COVERAGE=ON` to the CMake configure command in the
+`-DSORTED_ARRAY_TOWER_ENABLE_COVERAGE=ON` to the CMake configure command in the
 [CMake configure stage](#2-cmake-configure-stage).
 Remember that there is a difference at this stage between using a single-config
 generator and using a multi-config generator.
@@ -588,7 +588,7 @@ generator and using a multi-config generator.
 - Single-config generator
 
   ```bash
-  cmake --preset conan-debug -DTYGHBN_ENABLE_COVERAGE=ON
+  cmake --preset conan-debug -DSORTED_ARRAY_TOWER_ENABLE_COVERAGE=ON
   ```
 
   prepares coverage instrumentation for the `Debug` build.
@@ -596,7 +596,7 @@ generator and using a multi-config generator.
 - Multi-config generator
 
   ```bash
-  cmake --preset conan-default -DTYGHBN_ENABLE_COVERAGE=ON
+  cmake --preset conan-default -DSORTED_ARRAY_TOWER_ENABLE_COVERAGE=ON
   ```
   
   prepares coverage instrumentation for all build types.
@@ -625,17 +625,17 @@ directory `build/<BuildType>/coverage_report/` in 5 formats:
 ### Sanitizers
 
 Sanitizers such as AddressSanitizer (ASan) and UndefinedBehaviorSanitizer (UBSan)
-can be enabled during testing by defining the CMake variable `TYGHBN_SANITIZE`
+can be enabled during testing by defining the CMake variable `SORTED_ARRAY_TOWER_SANITIZE`
 during the [CMake configure stage](#2-cmake-configure-stage).
 
 For example:
 
 - ```bash
-  cmake --preset conan-debug -DTYGHBN_SANITIZE=address,undefined
+  cmake --preset conan-debug -DSORTED_ARRAY_TOWER_SANITIZE=address,undefined
   ```
 
 This configures the project to compile tests with `-fsanitize=address,undefined`.
-The value of `TYGHBN_SANITIZE` is passed directly to the compiler's
+The value of `SORTED_ARRAY_TOWER_SANITIZE` is passed directly to the compiler's
 `-fsanitize` flag, so you can specify any sanitizer supported by your compiler.
 
 #### Example: Configure step for sanitizers
@@ -643,7 +643,7 @@ The value of `TYGHBN_SANITIZE` is passed directly to the compiler's
 - Single-config generator
 
   ```bash
-  cmake --preset conan-debug -DTYGHBN_SANITIZE=address,undefined
+  cmake --preset conan-debug -DSORTED_ARRAY_TOWER_SANITIZE=address,undefined
   ```
 
   prepares the `Debug` build with ASan and UBSan enabled.
@@ -651,7 +651,7 @@ The value of `TYGHBN_SANITIZE` is passed directly to the compiler's
 - Multi-config generator
 
   ```bash
-  cmake --preset conan-default -DTYGHBN_SANITIZE=address,undefined
+  cmake --preset conan-default -DSORTED_ARRAY_TOWER_SANITIZE=address,undefined
   ```
 
   prepares all build types with ASan and UBSan enabled.
@@ -704,7 +704,7 @@ Below is a summary of `just` commands available in [`justfile`](justfile):
   If the second last argument contains `mod` as a substring, the code will be
   compiled for C++ modules. (If absent, it defaults to `mod`.)
   If the last argument is a non-empty string, it is passed as
-  `-DTYGHBN_SANITIZE=<sanitize>` to the CMake configure command. This enables
+  `-DSORTED_ARRAY_TOWER_SANITIZE=<sanitize>` to the CMake configure command. This enables
   sanitizers during testing.
 
   Examples:
@@ -743,7 +743,7 @@ Below is a summary of `just` commands available in [`justfile`](justfile):
   generator.
   If the second last argument contains `cov` as a substring, the code coverage
   report generation will be enabled. If the last argument is a non-empty
-  string, it is passed as `-DTYGHBN_SANITIZE=<sanitize>` to the CMake configure
+  string, it is passed as `-DSORTED_ARRAY_TOWER_SANITIZE=<sanitize>` to the CMake configure
   command.
 
   Examples:
@@ -928,7 +928,7 @@ a command that is listed more than once, so
 ### xmake.lua
 
 In [`xmake.lua`](xmake.lua), you will see two configuration options for the
-`tyghbn` project:
+`sorted_array_tower` project:
 
 - `use_modules`: Whether to support C++ modules or not.
 - `pic`: Whether to build code to be position independent or not.
@@ -941,19 +941,19 @@ the `target(...)` command:
 
 - `add_one`
 - `or_else`
-- `tyghbn`
+- `sorted_array_tower`
 - `tests`
 
 The first three targets are library targets, while the last target (`tests`) is
 a binary target.
 
 Each library target
-has one header file in [`include/tyghbn`](include/tyghbn)
+has one header file in [`include/sorted_array_tower`](include/sorted_array_tower)
 and one module file in [`modules`](modules) of the same name.
 The header file exposes a traditional interface, while the module file exposes
 a C++ module interface. Note that the directory structure of
-[`modules`](modules) is simpler than [`include/tyghbn`](include/tyghbn) as it
-does not need a nested `tyghbn` inside for disambiguation.
+[`modules`](modules) is simpler than [`include/sorted_array_tower`](include/sorted_array_tower) as it
+does not need a nested `sorted_array_tower` inside for disambiguation.
 
 The command `add_files` is used to add both the implementation files (`.cpp`)
 and module interface files (`.cppm`).
@@ -971,9 +971,9 @@ have the same kind (`static` here).
 
 #### Umbrella library target
 
-The target named `tyghbn` is an umbrella target that reexports public entities
+The target named `sorted_array_tower` is an umbrella target that reexports public entities
 from `add_one` and `or_else`.
-The *kind* of `tyghbn` is defined with the same logic as `or_else` because it
+The *kind* of `sorted_array_tower` is defined with the same logic as `or_else` because it
 only adds non-implementation files on top of its dependencies.
 
 #### Test library
@@ -995,13 +995,13 @@ library. When you create a package, you can specify which targets you want to
 export, and Xmake will know which dependencies are used only by the targets you
 are exporting.
 
-#### `TYGHBN_USE_MODULES` macro
+#### `SORTED_ARRAY_TOWER_USE_MODULES` macro
 
 To support choosing between compiling for C++ modules or not, a package
 configuration option named `use_modules` is provided in `xmake.lua`.
 It can be set in the
 [XMake configure stage](#1-xmake-configure-stage), and it will be passed as a
-macro named `TYGHBN_USE_MODULES` with value `1` in C++ code.
+macro named `SORTED_ARRAY_TOWER_USE_MODULES` with value `1` in C++ code.
 
 ### Xmake+Xrepo development workflow
 
@@ -1303,7 +1303,7 @@ also provided for convenience.
   ```
 
   Calls `docker rmi` on all images whose tags have the specified `prefix`.
-  If `prefix` is not specified, it defaults to `tyghbn-`, which is the prefix of
+  If `prefix` is not specified, it defaults to `sorted_array_tower-`, which is the prefix of
   `name` in [compose.yaml](ci/compose.yaml).
 
 Example:

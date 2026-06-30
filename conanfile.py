@@ -2,10 +2,10 @@ from conan import ConanFile
 from conan.tools.build import check_min_cppstd
 from conan.tools.cmake import cmake_layout, CMakeDeps, CMakeToolchain, CMake
 
-PACKAGE_NAME = "tyghbn"
+PACKAGE_NAME = "sorted_array_tower"
 EXPORT_LIBS = ["or_else", "add_one"]
 
-class Tyghbn(ConanFile):
+class SortedArrayTower(ConanFile):
     name = PACKAGE_NAME
 
     # Metadata
@@ -46,7 +46,7 @@ class Tyghbn(ConanFile):
 
     def generate(self):
         tc = CMakeToolchain(self)
-        tc.cache_variables["TYGHBN_USE_MODULES"] = self.options.use_modules
+        tc.cache_variables["SORTED_ARRAY_TOWER_USE_MODULES"] = self.options.use_modules
         tc.generate()
 
         deps = CMakeDeps(self)

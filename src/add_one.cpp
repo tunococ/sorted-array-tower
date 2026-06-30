@@ -1,10 +1,10 @@
-#include <tyghbn/add_one.hpp>
+#include <sorted_array_tower/add_one.hpp>
 
-namespace tyghbn {
+namespace sorted_array_tower {
 
 template <>
 std::string add_one(std::string x) {
     return x + "1";
 }
 
-} // namespace tyghbn
+} // namespace sorted_array_tower

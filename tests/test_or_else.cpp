@@ -1,12 +1,12 @@
 #include <doctest/doctest.h>
 
-#if TYGHBN_USE_MODULES
-import tyghbn;
+#if SORTED_ARRAY_TOWER_USE_MODULES
+import sorted_array_tower;
 #else
-#include <tyghbn/tyghbn.hpp>
+#include <sorted_array_tower/sorted_array_tower.hpp>
 #endif
 
-using namespace tyghbn;
+using namespace sorted_array_tower;
 
 TEST_SUITE("or_else") {
 
