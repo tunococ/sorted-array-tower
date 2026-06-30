@@ -9,14 +9,11 @@ import sorted_array_tower;
 using namespace sorted_array_tower;
 
 TEST_SUITE("or_else") {
+  TEST_CASE("int") {
+    CHECK(or_else(2, 1) == 2);
+    CHECK(or_else(0, 1) == 1);
+  }
 
-    TEST_CASE("int") {
-        CHECK(or_else(2, 1) == 2);
-        CHECK(or_else(0, 1) == 1);
-    }
-
-    // This case should give a gap in the coverage report.
-    TEST_CASE("char") {
-        CHECK(or_else('a', 'b') == 'a');
-    }
+  // This case should give a gap in the coverage report.
+  TEST_CASE("char") { CHECK(or_else('a', 'b') == 'a'); }
 }

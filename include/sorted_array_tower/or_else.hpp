@@ -1,7 +1,8 @@
 /**
  * @file
- * 
- * @brief [sorted_array_tower.or_else](module__sorted_array_tower_8or__else.html)
+ *
+ * @brief
+ * [sorted_array_tower.or_else](module__sorted_array_tower_8or__else.html)
  */
 
 #pragma once
@@ -18,7 +19,7 @@ namespace sorted_array_tower {
  */
 template <typename T>
 T or_else(T x, T y) {
-    return x == T(0) ? y : x;
+  return x == T(0) ? y : x;
 }
 
-} // namespace sorted_array_tower
+}  // namespace sorted_array_tower
