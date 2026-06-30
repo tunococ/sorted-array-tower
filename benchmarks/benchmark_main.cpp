@@ -11,23 +11,19 @@ import sorted_array_tower;
 #endif
 
 int main() {
-    ankerl::nanobench::Bench bench;
+  ankerl::nanobench::Bench bench;
 
-    bench.run("add_one<int>", [] {
-        volatile auto r = sorted_array_tower::add_one(42);
-    });
+  bench.run("add_one<int>",
+            [] { volatile auto r = sorted_array_tower::add_one(42); });
 
-    bench.run("add_one<double>", [] {
-        volatile auto r = sorted_array_tower::add_one(3.14);
-    });
+  bench.run("add_one<double>",
+            [] { volatile auto r = sorted_array_tower::add_one(3.14); });
 
-    bench.run("or_else<int>", [] {
-        volatile auto r = sorted_array_tower::or_else(2, 1);
-    });
+  bench.run("or_else<int>",
+            [] { volatile auto r = sorted_array_tower::or_else(2, 1); });
 
-    bench.run("or_else<int> with zero", [] {
-        volatile auto r = sorted_array_tower::or_else(0, 1);
-    });
+  bench.run("or_else<int> with zero",
+            [] { volatile auto r = sorted_array_tower::or_else(0, 1); });
 
-    return 0;
+  return 0;
 }

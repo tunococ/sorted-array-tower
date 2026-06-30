@@ -4,7 +4,7 @@ namespace sorted_array_tower {
 
 template <>
 std::string add_one(std::string x) {
-    return x + "1";
+  return x + "1";
 }
 
-} // namespace sorted_array_tower
+}  // namespace sorted_array_tower
