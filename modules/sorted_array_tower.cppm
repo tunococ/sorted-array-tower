@@ -1,6 +1,7 @@
 /**
- * @brief Module interface for [sorted_array_tower.hpp](@ref sorted_array_tower.hpp).
- * 
+ * @brief Module interface for [sorted_array_tower.hpp](@ref
+ * sorted_array_tower.hpp).
+ *
  * This is an umbrella module that includes all submodules.
  */
 export module sorted_array_tower;
