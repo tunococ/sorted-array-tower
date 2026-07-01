@@ -37,6 +37,12 @@ option("has_linux_version_h")
     add_cincludes("linux/version.h")
 option_end()
 
+-- Generate compile_commands.json for tools like LSP
+add_rules("plugin.compile_commands.autoupdate", {
+    outputdir = "build",
+    lsp = "clangd"
+})
+
 -- Dependency declarations
 -- =======================
 
