@@ -35,13 +35,20 @@ if(PROJECT_IS_TOP_LEVEL)
   # Automatically resolve the correct path regardless of generator type
   if(CMAKE_CONFIGURATION_TYPES)
     # Multi-Config outputs directly to the top-level build directory
-    set(CDB_PATH "${CMAKE_BINARY_DIR}")
+    set(COMPILE_COMMANDS_PATH "${CMAKE_BINARY_DIR}/compile_commands.json")
   else()
     # Single-Config outputs to the active Conan variant folder (Release/Debug)
-    set(CDB_PATH "${CMAKE_CURRENT_BINARY_DIR}")
+    set(COMPILE_COMMANDS_PATH "${CMAKE_CURRENT_BINARY_DIR}/compile_commands.json")
   endif()
 
-  message("compile_commands.json path: ${CDB_PATH}")
+  message(STATUS "compile_commands.json path: ${COMPILE_COMMANDS_PATH}")
+
+  add_custom_target(copy_compile_commands ALL
+    COMMAND
+      ${CMAKE_COMMAND} -E copy_if_different
+      "${COMPILE_COMMANDS_PATH}"
+      "${PROJECT_SOURCE_DIR}/build/compile_commands.json"
+  )
 endif()
 
 ### TEMPLATE_BLOCK: Library with no cpp files

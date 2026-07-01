@@ -15,5 +15,7 @@ TEST_SUITE("or_else") {
   }
 
   // This case should give a gap in the coverage report.
-  TEST_CASE("char") { CHECK(or_else('a', 'b') == 'a'); }
+  TEST_CASE("char") {
+    CHECK(or_else('a', 'b') == 'a');
+  }
 }

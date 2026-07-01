@@ -8,6 +8,6 @@ module;
 export module sorted_array_tower.add_one;
 
 export namespace sorted_array_tower {
-  // All names to be made public must be re-exported here explicitly.
-  using sorted_array_tower::add_one;
-}
+// All names to be made public must be re-exported here explicitly.
+using sorted_array_tower::add_one;
+}  // namespace sorted_array_tower
