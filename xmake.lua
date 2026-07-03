@@ -64,6 +64,17 @@ add_requires("nanobench >=4.3.11 <5.0.0", {
 -- Target declarations
 -- ===================
 
+target("skip_array")
+    if has_config("use_modules") then
+        set_kind("static")
+        -- .cppm interface files must be made public.
+        add_files("modules/skip_array.cppm", { public = true })
+    else
+        set_kind("headeronly")
+    end
+    add_headerfiles("include/(sorted_array_tower/skip_array.hpp)")
+    add_includedirs("include", { public = true })
+
 target("or_else")
     if has_config("use_modules") then
         set_kind("static")
@@ -93,7 +104,11 @@ target("sorted_array_tower")
     else
         set_kind("headeronly")
     end
-    add_deps("or_else", "add_one")
+    add_deps(
+        "or_else",
+        "add_one",
+        "skip_array"
+    )
     add_headerfiles("include/(sorted_array_tower/sorted_array_tower.hpp)")
     add_includedirs("include", { public = true })
 
@@ -103,7 +118,8 @@ target("tests")
     add_files(
         "tests/test_main.cpp",
         "tests/test_add_one.cpp",
-        "tests/test_or_else.cpp"
+        "tests/test_or_else.cpp",
+        "tests/test_skip_array.cpp"
     )
     add_deps("sorted_array_tower")
     if has_config("use_modules") then

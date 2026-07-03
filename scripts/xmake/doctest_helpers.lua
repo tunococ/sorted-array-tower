@@ -3,6 +3,18 @@ function convert_junit_to_text(input_path, output_path)
     if not input then
         raise("failed to open %s for reading", input)
     end
+
+    local function sanitize_xml(raw_xml)
+        return raw_xml:gsub('=(%b"")', function(quoted_value)
+            return quoted_value:gsub('>', '&gt;')
+        end)
+    end
+
+    -- doctest output does not escape some closing angled brackets, which cause
+    -- Xmake's XML parser to trip. We need to escape them before passing to
+    -- Xmake's XML parser.
+    input = sanitize_xml(input)
+
     local output_file = io.open(output_path, "w")
     if not output_file then
         raise("failed to open %s for writing", output_file)
