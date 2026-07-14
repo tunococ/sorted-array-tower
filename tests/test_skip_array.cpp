@@ -338,8 +338,55 @@ TEST_CASE_TEMPLATE("push_back and pop", SkipArrayType,
   }
 }
 
+TEST_CASE_TEMPLATE("compact", SkipArrayType, SkipArrayTemplate<vector>,
+                    SkipArrayTemplate<deque>) {
+  SUBCASE("empty") {
+    SkipArrayType s;
+    REQUIRE(s.capacity() == s.size());
+    s.compact();
+    REQUIRE(s.capacity() == s.size());
+  }
+
+  SUBCASE("already compact") {
+    SkipArrayType s{1, 2, 3, 4, 5};
+    REQUIRE(s.capacity() == s.size());
+    s.compact();
+    REQUIRE(s.capacity() == s.size());
+  }
+
+  SUBCASE("removes deleted cells") {
+    SkipArrayType s{1, 2, 3, 4, 5};
+    s.erase(s.begin());
+    s.erase(--s.end());
+    REQUIRE(s.capacity() == s.size() + 2);
+    s.compact();
+    REQUIRE(s.capacity() == s.size());
+    s.erase(s.begin());
+    s.erase(s.begin());
+    s.erase(s.begin());
+    REQUIRE(s.capacity() == s.size() + 3);
+    s.compact();
+    REQUIRE(s.capacity() == s.size());
+    REQUIRE(s.empty());
+  }
+
+  SUBCASE("equal before and after") {
+    SkipArrayType before{1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+    before.erase(next(before.begin(), 2));
+    before.erase(next(before.begin(), 4));
+    before.erase(next(before.begin(), 6));
+
+    SkipArrayType after = before;
+    after.compact();
+
+    REQUIRE(before.capacity() == before.size() + 3);
+    REQUIRE(after.capacity() == after.size());
+    REQUIRE(before == after);
+  }
+}
+
 TEST_CASE_TEMPLATE("searches", SkipArrayType, SkipArrayTemplate<vector>,
-                   SkipArrayTemplate<deque>) {
+                    SkipArrayTemplate<deque>) {
   SUBCASE("simple searches") {
     SkipArrayType s = {2, 2, 2, 4, 4, 4, 6, 6, 6};
 

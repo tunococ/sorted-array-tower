@@ -225,18 +225,22 @@ class SkipArray {
         std::conditional_t<IsConst, typename SkipArray::const_reference,
                            typename SkipArray::reference>;
 
-    Iterator(Iterator const&) = default;
-    Iterator(Iterator&&) = default;
-    Iterator(Iterator<false> const& other) noexcept(noexcept(size_type(index_)))
+    constexpr Iterator() noexcept = default;
+    constexpr Iterator(Iterator const&) = default;
+    constexpr Iterator(Iterator&&) = default;
+    constexpr Iterator& operator=(Iterator const&) = default;
+    constexpr Iterator& operator=(Iterator&&) = default;
+    constexpr Iterator(Iterator<false> const& other) noexcept(
+        noexcept(size_type(index_)))
       requires(IsConst)
         : index_(other.index_), skip_array_(other.skip_array_) {}
-    Iterator(Iterator<false>&& other) noexcept(
+    constexpr Iterator(Iterator<false>&& other) noexcept(
         noexcept(size_type(std::move(index_))))
       requires(IsConst)
         : index_(std::move(other.index_)), skip_array_(other.skip_array_) {}
 
-    Iterator(SkipArray const* skip_array,
-             size_type index) noexcept(noexcept(size_type(index_)))
+    constexpr Iterator(SkipArray const* skip_array,
+                       size_type index) noexcept(noexcept(size_type(index_)))
         : index_(index), skip_array_(skip_array) {}
 
     constexpr bool is_valid() const {
@@ -649,7 +653,11 @@ class SkipArray {
   /// @param args The arguments used to construct the new element.
   /// @return A reference to the newly constructed element.
   template <typename... Args>
-  constexpr reference emplace_back(Args&&... args) {
+  constexpr reference emplace_back(Args&&... args)
+    requires requires {
+      std::declval<array_type>().emplace_back(std::declval<cell_type>());
+    }
+  {
     cell_type& cell = base_array_.emplace_back(std::in_place_index<0>,
                                                std::forward<Args>(args)...);
     ++size_;
@@ -657,12 +665,20 @@ class SkipArray {
   }
 
   /// @brief Appends a copy of `value` to the back of the array.
-  constexpr void push_back(value_type const& value) {
+  constexpr void push_back(value_type const& value)
+    requires requires {
+      std::declval<array_type>().emplace_back(std::declval<cell_type>());
+    }
+  {
     emplace_back(value);
   }
 
   /// @brief Appends `value` to the back of the array by moving it.
-  constexpr void push_back(value_type&& value) {
+  constexpr void push_back(value_type&& value)
+    requires requires {
+      std::declval<array_type>().emplace_back(std::declval<cell_type>());
+    }
+  {
     emplace_back(std::move(value));
   }
 
@@ -697,6 +713,31 @@ class SkipArray {
     size_ = 0;
     front_index_ = 0;
     base_array_.resize(0);
+  }
+
+  /// @brief Rewrites the underlying array so that all stored elements are
+  ///   packed contiguously and all deleted (empty) cells are removed.
+  ///
+  /// Repeated erasures leave empty cells in the underlying array that are only
+  /// represented by displacements. This rewrites the array so that it contains
+  /// exactly the stored elements, in order, with no gaps, reducing `capacity()`
+  /// to `size()` and resetting the front index to `0`.
+  ///
+  /// This does not change the number of elements stored nor their order.
+  constexpr void compact() {
+    if (size_ == capacity()) {
+      return;
+    }
+    size_type new_index = 0;
+    size_type old_index = front_index_;
+    for (; new_index < size_; ++new_index) {
+      assert(is_valid_index(old_index));
+      base_array_[new_index] = std::move(base_array_[old_index]);
+      old_index = first_valid_right_index(old_index + 1);
+    }
+
+    base_array_.resize(size_);
+    front_index_ = 0;
   }
 
   /// @brief Returns an iterator to the first element not less than `key`.
