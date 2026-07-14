@@ -400,6 +400,17 @@ TEST_CASE_TEMPLATE("searches", SkipArrayType, SkipArrayTemplate<vector>,
       CHECK(s.find(5) == s.end());
       CHECK(s.find(7) == s.end());
     }
+
+    // count
+    {
+      CHECK(s.count(1) == 0);
+      CHECK(s.count(2) == 3);
+      CHECK(s.count(3) == 0);
+      CHECK(s.count(4) == 3);
+      CHECK(s.count(5) == 0);
+      CHECK(s.count(6) == 3);
+      CHECK(s.count(7) == 0);
+    }
   }
 
   SUBCASE("searches with gaps") {
