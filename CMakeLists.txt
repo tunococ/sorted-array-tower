@@ -52,11 +52,14 @@ if(PROJECT_IS_TOP_LEVEL)
 
   if(NOT (DEFINED BUILD_TESTING AND NOT BUILD_TESTING))
     option(SORTED_ARRAY_TOWER_ENABLE_COVERAGE "Enable code coverage instrumentation" OFF)
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-      add_compile_options(--coverage -g)
-      add_link_options(--coverage)
+    if(SORTED_ARRAY_TOWER_ENABLE_COVERAGE)
+      if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        add_compile_options(--coverage -g)
+        add_link_options(--coverage)
+      endif()
     endif()
   endif()
+
 endif()
 
 add_library(skip_array-legacy INTERFACE)
@@ -259,18 +262,15 @@ if(PROJECT_IS_TOP_LEVEL AND NOT (DEFINED BUILD_TESTING AND NOT BUILD_TESTING))
     if(DEFINED SORTED_ARRAY_TOWER_SANITIZE AND SORTED_ARRAY_TOWER_SANITIZE)
       if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR
         CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-        target_compile_options(test_sorted_array_tower
-          PRIVATE
-            -fsanitize=${SORTED_ARRAY_TOWER_SANITIZE}
-            -fno-omit-frame-pointer
-            -Og -g
-            -fno-sanitize-recover=all
+        add_compile_options(
+          -fsanitize=${SORTED_ARRAY_TOWER_SANITIZE}
+          -fno-omit-frame-pointer
+          -Og -g
+          -fno-sanitize-recover=all
         )
-        target_link_options(test_sorted_array_tower
-          PRIVATE
-            -fsanitize=${SORTED_ARRAY_TOWER_SANITIZE}
+        add_link_options(
+          -fsanitize=${SORTED_ARRAY_TOWER_SANITIZE}
         )
-        message("${SANITIZER_OPTIONS}")
       else()
         message(WARNING "Sanitizers are not supported with ${CMAKE_CXX_COMPILER_ID}")
       endif()
