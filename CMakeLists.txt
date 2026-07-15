@@ -51,6 +51,39 @@ if(PROJECT_IS_TOP_LEVEL)
   )
 endif()
 
+add_library(skip_array-legacy INTERFACE)
+target_sources(skip_array-legacy
+  INTERFACE
+    FILE_SET HEADERS
+      FILES include/sorted_array_tower/skip_array.hpp
+      BASE_DIRS include
+)
+
+if(NOT SORTED_ARRAY_TOWER_USE_MODULES)
+  # For the non-C++-module version, we simply define a passthrough library
+  # because skip_array-legacy is already a valid library.
+  add_library(skip_array INTERFACE)
+  target_link_libraries(skip_array
+    INTERFACE
+      skip_array-legacy
+  )
+else()
+  # For the C++-module version, we add the module interface files on top of
+  # the base library.
+  add_library(skip_array)
+  target_compile_features(skip_array PUBLIC cxx_std_20)
+  target_link_libraries(skip_array
+    PUBLIC
+      skip_array-legacy
+  )
+  target_sources(skip_array
+    PUBLIC
+      FILE_SET CXX_MODULES
+        FILES modules/skip_array.cppm
+  )
+endif()
+
+
 ### TEMPLATE_BLOCK: Library with no cpp files
 #
 # To provide a consist interface for module and non-module versions, start with
@@ -146,6 +179,7 @@ target_link_libraries(sorted_array_tower-legacy
   INTERFACE
     or_else
     add_one
+    skip_array
 )
 
 if(NOT SORTED_ARRAY_TOWER_USE_MODULES)

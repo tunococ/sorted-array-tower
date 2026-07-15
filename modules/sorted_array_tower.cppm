@@ -10,3 +10,4 @@ export module sorted_array_tower;
 // in sorted_array_tower.hpp.
 export import sorted_array_tower.add_one;
 export import sorted_array_tower.or_else;
+export import sorted_array_tower.skip_array;
