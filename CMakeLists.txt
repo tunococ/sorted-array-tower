@@ -49,6 +49,17 @@ if(PROJECT_IS_TOP_LEVEL)
       "${COMPILE_COMMANDS_PATH}"
       "${PROJECT_SOURCE_DIR}/build/compile_commands.json"
   )
+
+  if(NOT (DEFINED BUILD_TESTING AND NOT BUILD_TESTING))
+    option(SORTED_ARRAY_TOWER_ENABLE_COVERAGE "Enable code coverage instrumentation" OFF)
+    if(SORTED_ARRAY_TOWER_ENABLE_COVERAGE)
+      if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        add_compile_options(--coverage -g)
+        add_link_options(--coverage)
+      endif()
+    endif()
+  endif()
+
 endif()
 
 add_library(skip_array-legacy INTERFACE)
@@ -251,18 +262,15 @@ if(PROJECT_IS_TOP_LEVEL AND NOT (DEFINED BUILD_TESTING AND NOT BUILD_TESTING))
     if(DEFINED SORTED_ARRAY_TOWER_SANITIZE AND SORTED_ARRAY_TOWER_SANITIZE)
       if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR
         CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-        target_compile_options(test_sorted_array_tower
-          PRIVATE
-            -fsanitize=${SORTED_ARRAY_TOWER_SANITIZE}
-            -fno-omit-frame-pointer
-            -Og -g
-            -fno-sanitize-recover=all
+        add_compile_options(
+          -fsanitize=${SORTED_ARRAY_TOWER_SANITIZE}
+          -fno-omit-frame-pointer
+          -Og -g
+          -fno-sanitize-recover=all
         )
-        target_link_options(test_sorted_array_tower
-          PRIVATE
-            -fsanitize=${SORTED_ARRAY_TOWER_SANITIZE}
+        add_link_options(
+          -fsanitize=${SORTED_ARRAY_TOWER_SANITIZE}
         )
-        message("${SANITIZER_OPTIONS}")
       else()
         message(WARNING "Sanitizers are not supported with ${CMAKE_CXX_COMPILER_ID}")
       endif()
@@ -288,9 +296,6 @@ if(PROJECT_IS_TOP_LEVEL AND NOT (DEFINED BUILD_TESTING AND NOT BUILD_TESTING))
     option(SORTED_ARRAY_TOWER_ENABLE_COVERAGE "Enable code coverage instrumentation" OFF)
     if(SORTED_ARRAY_TOWER_ENABLE_COVERAGE)
       if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-        target_compile_options(test_sorted_array_tower PRIVATE --coverage -O0 -g)
-        target_link_options(test_sorted_array_tower PRIVATE --coverage)
-
         find_program(GCOVR gcovr)
 
         if(GCOVR)
@@ -311,7 +316,12 @@ if(PROJECT_IS_TOP_LEVEL AND NOT (DEFINED BUILD_TESTING AND NOT BUILD_TESTING))
             add_custom_target(coverage
               COMMAND $<TARGET_FILE:test_sorted_array_tower>
               COMMAND ${CMAKE_COMMAND} -E make_directory "${SORTED_ARRAY_TOWER_BUILD_DIR}/coverage_report"
-              COMMAND ${GCOVR} --root ${CMAKE_SOURCE_DIR}
+              COMMAND ${GCOVR}
+                --root "."
+                --filter "src/"
+                --filter "include/"
+                --filter "modules/"
+                --gcov-executable "${SORTED_ARRAY_TOWER_GCOV_EXECUTABLE}"
                 --txt
                 "${SORTED_ARRAY_TOWER_BUILD_DIR}/coverage_report/report.txt"
                 --html-details
@@ -320,11 +330,9 @@ if(PROJECT_IS_TOP_LEVEL AND NOT (DEFINED BUILD_TESTING AND NOT BUILD_TESTING))
                 "${SORTED_ARRAY_TOWER_BUILD_DIR}/coverage_report/cobertura.xml"
                 --markdown
                 "${SORTED_ARRAY_TOWER_BUILD_DIR}/coverage_report/summary.md"
-                --exclude "${CMAKE_SOURCE_DIR}/tests/"
-                --gcov-executable "${SORTED_ARRAY_TOWER_GCOV_EXECUTABLE}"
                 --txt-summary >
                 "${SORTED_ARRAY_TOWER_BUILD_DIR}/coverage_report/summary.txt"
-              WORKING_DIRECTORY "${SORTED_ARRAY_TOWER_BUILD_DIR}"
+              WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
               COMMENT "Generating code coverage report in ${SORTED_ARRAY_TOWER_BUILD_DIR}/coverage_report"
             )
           endif()
