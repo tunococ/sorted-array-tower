@@ -902,6 +902,14 @@ class SkipArray {
     return std::lexicographical_compare_three_way(begin(), end(), other.begin(),
                                                   other.end());
   }
+
+  constexpr array_type& base_array() noexcept {
+    return base_array_;
+  }
+
+  constexpr array_type const& base_array() const noexcept {
+    return base_array_;
+  }
 };
 
 }  // namespace sorted_array_tower
