@@ -5,6 +5,7 @@ target_sources(test_sorted_array_tower
     test_or_else.cpp
     test_add_one.cpp
     test_skip_array.cpp
+    test_bounded_array.cpp
 )
 
 target_link_libraries(test_sorted_array_tower
