@@ -172,10 +172,38 @@ class BoundedArray {
 
  private:
   allocator_type allocator_;
-  std::unique_ptr<T[]> data_;
+  pointer data_;
   size_type front_index_;
   size_type capacity_;
   size_type size_;
+
+  /// @brief Allocates raw, uninitialized storage for `count` elements.
+  constexpr pointer allocate_storage(size_type count) {
+    if (count == 0) {
+      return nullptr;
+    }
+    return std::allocator_traits<allocator_type>::allocate(allocator_, count);
+  }
+
+  /// @brief Deallocates raw storage previously obtained from
+  ///   `allocate_storage`. Does not destroy any elements.
+  constexpr void deallocate_storage(pointer data, size_type count) {
+    if (data) {
+      std::allocator_traits<allocator_type>::deallocate(allocator_, data,
+                                                        count);
+    }
+  }
+
+  /// @brief Cleanup helper for use in a constructor's catch block.
+  ///
+  /// Destroys the `size_` elements that were successfully constructed at the
+  /// front of `data_` and frees the buffer. Constructors need this because a
+  /// throwing element constructor means the object is never fully constructed,
+  /// so its destructor will not run.
+  constexpr void destroy_and_deallocate_partial() {
+    destroy_range(front_index_, size_);
+    deallocate_storage(data_, capacity_);
+  }
 
   constexpr size_type logical_to_physical(size_type index) const {
     assert(index < size_);
@@ -187,9 +215,17 @@ class BoundedArray {
     return (front_index_ + size_ - 1) % (capacity_ == 0 ? 1 : capacity_);
   }
 
-  constexpr void destroy_range(size_type first, size_type last) {
-    for (size_type i = first; i != last; i = (i + 1) % capacity_) {
+  /// @brief Destroys `count` elements starting at physical index `first`,
+  ///   wrapping around the circular buffer.
+  ///
+  /// Iterating by count (rather than comparing a start and end index) is
+  /// required so that a completely full buffer, whose start and end physical
+  /// indices coincide, still has all of its elements destroyed.
+  constexpr void destroy_range(size_type first, size_type count) {
+    size_type i = first;
+    for (size_type n = 0; n < count; ++n) {
       std::allocator_traits<allocator_type>::destroy(allocator_, &data_[i]);
+      i = (i + 1) % (capacity_ == 0 ? 1 : capacity_);
     }
   }
 
@@ -213,7 +249,7 @@ class BoundedArray {
     if (new_capacity == capacity_) {
       return;
     }
-    auto new_data = std::unique_ptr<T[]>(new T[new_capacity]);
+    pointer new_data = allocate_storage(new_capacity);
     for (size_type i = 0; i < size_; ++i) {
       size_type old_physical = logical_to_physical(i);
       size_type new_physical = i % (new_capacity == 0 ? 1 : new_capacity);
@@ -222,7 +258,8 @@ class BoundedArray {
       std::allocator_traits<allocator_type>::destroy(allocator_,
                                                      &data_[old_physical]);
     }
-    data_ = std::move(new_data);
+    deallocate_storage(data_, capacity_);
+    data_ = new_data;
     capacity_ = new_capacity;
     front_index_ = 0;
   }
@@ -250,27 +287,35 @@ class BoundedArray {
   constexpr explicit BoundedArray(size_type capacity,
                                   Allocator const& allocator = Allocator())
       : allocator_(allocator),
-        data_(capacity > 0 ? new T[capacity] : nullptr),
+        data_(nullptr),
         front_index_(0),
         capacity_(capacity),
-        size_(0) {}
+        size_(0) {
+    data_ = allocate_storage(capacity);
+  }
 
   /// @brief Constructs a `BoundedArray` with the given capacity, holding
   ///   `count` default-constructed elements.
   constexpr BoundedArray(size_type capacity, size_type count,
                          Allocator const& allocator = Allocator())
       : allocator_(allocator),
-        data_(capacity > 0 ? new T[capacity] : nullptr),
+        data_(nullptr),
         front_index_(0),
         capacity_(capacity),
         size_(0) {
     if (count > capacity_) {
       throw std::length_error("BoundedArray count exceeds capacity");
     }
-    for (size_type i = 0; i < count; ++i) {
-      raw_construct(i, value_type());
+    data_ = allocate_storage(capacity);
+    try {
+      for (size_type i = 0; i < count; ++i) {
+        raw_construct(i, value_type());
+        ++size_;
+      }
+    } catch (...) {
+      destroy_and_deallocate_partial();
+      throw;
     }
-    size_ = count;
   }
 
   /// @brief Constructs a `BoundedArray` with the given capacity, holding
@@ -279,17 +324,23 @@ class BoundedArray {
                          value_type const& value,
                          Allocator const& allocator = Allocator())
       : allocator_(allocator),
-        data_(capacity > 0 ? new T[capacity] : nullptr),
+        data_(nullptr),
         front_index_(0),
         capacity_(capacity),
         size_(0) {
     if (count > capacity_) {
       throw std::length_error("BoundedArray count exceeds capacity");
     }
-    for (size_type i = 0; i < count; ++i) {
-      raw_construct(i, value);
+    data_ = allocate_storage(capacity);
+    try {
+      for (size_type i = 0; i < count; ++i) {
+        raw_construct(i, value);
+        ++size_;
+      }
+    } catch (...) {
+      destroy_and_deallocate_partial();
+      throw;
     }
-    size_ = count;
   }
 
   /// @brief Constructs a `BoundedArray` from a range of elements with the
@@ -300,16 +351,22 @@ class BoundedArray {
                          InputIterator last,
                          Allocator const& allocator = Allocator())
       : allocator_(allocator),
-        data_(capacity > 0 ? new T[capacity] : nullptr),
+        data_(nullptr),
         front_index_(0),
         capacity_(capacity),
         size_(0) {
-    for (; first != last; ++first) {
-      if (size_ == capacity_) {
-        throw std::length_error("BoundedArray range exceeds capacity");
+    data_ = allocate_storage(capacity);
+    try {
+      for (; first != last; ++first) {
+        if (size_ == capacity_) {
+          throw std::length_error("BoundedArray range exceeds capacity");
+        }
+        raw_construct(size_, *first);
+        ++size_;
       }
-      raw_construct(size_, *first);
-      ++size_;
+    } catch (...) {
+      destroy_and_deallocate_partial();
+      throw;
     }
   }
 
@@ -324,24 +381,31 @@ class BoundedArray {
   constexpr BoundedArray(BoundedArray const& other)
       : allocator_(std::allocator_traits<allocator_type>::
                        select_on_container_copy_construction(other.allocator_)),
-        data_(other.capacity_ > 0 ? new T[other.capacity_] : nullptr),
+        data_(nullptr),
         front_index_(0),
         capacity_(other.capacity_),
         size_(0) {
-    for (size_type i = 0; i < other.size_; ++i) {
-      raw_construct(i, other[i]);
+    data_ = allocate_storage(other.capacity_);
+    try {
+      for (size_type i = 0; i < other.size_; ++i) {
+        raw_construct(i, other[i]);
+        ++size_;
+      }
+    } catch (...) {
+      destroy_and_deallocate_partial();
+      throw;
     }
-    size_ = other.size_;
   }
 
   /// @brief Move-constructs a `BoundedArray`, leaving the moved-from array
   ///   empty with zero capacity.
   constexpr BoundedArray(BoundedArray&& other) noexcept
       : allocator_(std::move(other.allocator_)),
-        data_(std::move(other.data_)),
+        data_(other.data_),
         front_index_(other.front_index_),
         capacity_(other.capacity_),
         size_(other.size_) {
+    other.data_ = nullptr;
     other.front_index_ = 0;
     other.capacity_ = 0;
     other.size_ = 0;
@@ -357,16 +421,26 @@ class BoundedArray {
       allocator_ = other.allocator_;
     }
     clear();
-    std::unique_ptr<T[]> new_data(other.capacity_ > 0 ? new T[other.capacity_]
-                                                      : nullptr);
-    data_ = std::move(new_data);
-    capacity_ = other.capacity_;
+    deallocate_storage(data_, capacity_);
+    data_ = nullptr;
+    capacity_ = 0;
     front_index_ = 0;
     size_ = 0;
-    for (size_type i = 0; i < other.size_; ++i) {
-      raw_construct(i, other[i]);
+    data_ = allocate_storage(other.capacity_);
+    capacity_ = other.capacity_;
+    try {
+      for (size_type i = 0; i < other.size_; ++i) {
+        raw_construct(i, other[i]);
+        ++size_;
+      }
+    } catch (...) {
+      destroy_range(0, size_);
+      deallocate_storage(data_, capacity_);
+      data_ = nullptr;
+      capacity_ = 0;
+      size_ = 0;
+      throw;
     }
-    size_ = other.size_;
     return *this;
   }
 
@@ -378,14 +452,18 @@ class BoundedArray {
       return *this;
     }
     clear();
+    deallocate_storage(data_, capacity_);
+    data_ = nullptr;
+    capacity_ = 0;
     if (std::allocator_traits<
             allocator_type>::propagate_on_container_move_assignment::value) {
       allocator_ = std::move(other.allocator_);
     }
-    data_ = std::move(other.data_);
+    data_ = other.data_;
     front_index_ = other.front_index_;
     capacity_ = other.capacity_;
     size_ = other.size_;
+    other.data_ = nullptr;
     other.front_index_ = 0;
     other.capacity_ = 0;
     other.size_ = 0;
@@ -405,10 +483,10 @@ class BoundedArray {
     return *this;
   }
 
-  /// @brief Destructor. Destroys all stored elements.
+  /// @brief Destructor. Destroys all stored elements and frees the storage.
   constexpr ~BoundedArray() {
-    destroy_range(front_index_,
-                  (front_index_ + size_) % (capacity_ == 0 ? 1 : capacity_));
+    destroy_range(front_index_, size_);
+    deallocate_storage(data_, capacity_);
   }
 
   /// @brief Returns a copy of the allocator associated with the array.
@@ -448,8 +526,7 @@ class BoundedArray {
       if (new_capacity == capacity_) {
         return;
       }
-      auto new_data = std::unique_ptr<T[]>(
-          new_capacity > 0 ? new T[new_capacity] : nullptr);
+      pointer new_data = allocate_storage(new_capacity);
       for (size_type i = 0; i < size_; ++i) {
         size_type old_physical = logical_to_physical(i);
         std::allocator_traits<allocator_type>::construct(
@@ -457,7 +534,8 @@ class BoundedArray {
         std::allocator_traits<allocator_type>::destroy(allocator_,
                                                        &data_[old_physical]);
       }
-      data_ = std::move(new_data);
+      deallocate_storage(data_, capacity_);
+      data_ = new_data;
       capacity_ = new_capacity;
       front_index_ = 0;
       return;
@@ -607,8 +685,7 @@ class BoundedArray {
   ///
   /// The capacity is preserved.
   constexpr void clear() {
-    destroy_range(front_index_,
-                  (front_index_ + size_) % (capacity_ == 0 ? 1 : capacity_));
+    destroy_range(front_index_, size_);
     front_index_ = 0;
     size_ = 0;
   }
