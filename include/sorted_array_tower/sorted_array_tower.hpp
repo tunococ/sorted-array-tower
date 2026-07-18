@@ -21,17 +21,6 @@
  * ```
  * to include all submodules.
  *
- * If you want to include only a specific submodule, you can do so by including
- * the corresponding header or importing the corresponding submodule.
- * Here's an example of how to pull in only the submodule named `add_one`:
- * ```
- * #include <sorted_array_tower/add_one.hpp>     // Legacy way
- * ```
- * or
- * ```
- * import sorted_array_tower.add_one;            // C++ module way
- * ```
- *
  * The umbrella module that includes all submodules is called
  * `sorted_array_tower`. You can use it with
  * ```
@@ -54,7 +43,5 @@
 
 #pragma once
 
-#include "add_one.hpp"
 #include "bounded_array.hpp"
-#include "or_else.hpp"
 #include "skip_array.hpp"

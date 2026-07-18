@@ -145,11 +145,9 @@ their names.
 
 ### Replacing example code with your code
 
-The example code consists of 3 libraries:
+The example code consists of 1 library:
 
-- `or_else`: a binary-less (header-only) library.
-- `add_one`: a normal library.
-- `sorted_array_tower`: an umbrella library that re-exports `or_else` and `add_one`.
+- `sorted_array_tower`: an umbrella library that re-exports the submodules below.
 
 The files for these libraries live in 3 subdirectories:
 
@@ -168,14 +166,8 @@ entities from header files in [`include`](include).
 `.cppm` files in [`modules`](modules) define C++ module interfaces from header
 files:
 
-- [`modules/or_else.cppm`](modules/or_else.cppm) defines
-  `module sorted_array_tower.or_else` that exposes names from
-  [`include/sorted_array_tower/or_else.hpp`](include/sorted_array_tower/or_else.hpp).
-- [`modules/add_one.cppm`](modules/add_one.cppm) defines
-  `module sorted_array_tower.add_one` that exposes names from
-  [`include/sorted_array_tower/add_one.hpp`](include/sorted_array_tower/add_one.hpp).
 - [`modules/sorted_array_tower.cppm`](modules/sorted_array_tower.cppm) re-exports names from
-  `module sorted_array_tower.or_else` and `module sorted_array_tower.add_one` under a new module name:
+  `module sorted_array_tower.bounded_array` and `module sorted_array_tower.skip_array` under a new module name:
   `sorted_array_tower`.
 
 Note that [`modules/sorted_array_tower.cppm`](modules/sorted_array_tower.cppm), which is the umbrella
@@ -304,10 +296,8 @@ Penguin Linux (Debian Forky/SID) with the following software:*
 
 ### CMakeLists.txt
 
-[`CMakeLists.txt`](CMakeLists.txt) defines 3 main library targets:
+[`CMakeLists.txt`](CMakeLists.txt) defines 1 main library target:
 
-- `add_one`
-- `or_else`
 - `sorted_array_tower`
 
 Each library
@@ -325,11 +315,6 @@ For each of the main library targets, we also have a base `-legacy` library.
 For the non-C++-module case (when `SORTED_ARRAY_TOWER_USE_MODULES` is not `ON`), this is
 exactly the same as the main library target. For the C++-module case, a `.cppm`
 file is added on top of the base `-legacy` library.
-
-The type of the CMake library target of `add_one-legacy` is not the
-same as `or_else-legacy` because `or_else-legacy` is a header-only library,
-but `add_one-legacy` is not. The `if` conditional blocks attempt to unify this
-divergence, which is arguably a historical quirk of CMake.
 
 - When you are making a library without `.cpp` files, you can use the CMake
   code in the `TEMPLATE_BLOCK: Library without cpp files` as your guide.
@@ -936,11 +921,9 @@ In [`xmake.lua`](xmake.lua), you will see two configuration options for the
 When you call `xmake f` (short for `xmake config`), you can choose the values
 for these options.
 
-There are 4 build targets in [`xmake.lua`](xmake.lua), each one is defined by
+There are 2 build targets in [`xmake.lua`](xmake.lua), each one is defined by
 the `target(...)` command:
 
-- `add_one`
-- `or_else`
 - `sorted_array_tower`
 - `tests`
 
@@ -962,17 +945,10 @@ available to the consumer.
 This is in contrast with `add_headerfiles`, which makes files public by
 default.
 
-Note that the Lua code for `add_one` is slightly different from `or_else`
-because `or_else` does not contain a `.cpp` file but `add_one` contains a
-`.cpp` file. This difference is only important when `use_modules` is `false`,
-which is when we need to set the *kind* of `or_else` to `headeronly` instead
-of `static`. When `use_modules` is `true`, both `add_one` and `or_else` can
-have the same kind (`static` here).
-
 #### Umbrella library target
 
 The target named `sorted_array_tower` is an umbrella target that reexports public entities
-from `add_one` and `or_else`.
+from `skip_array` and `bounded_array`.
 The *kind* of `sorted_array_tower` is defined with the same logic as `or_else` because it
 only adds non-implementation files on top of its dependencies.
 

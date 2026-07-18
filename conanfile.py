@@ -3,7 +3,7 @@ from conan.tools.build import check_min_cppstd
 from conan.tools.cmake import cmake_layout, CMakeDeps, CMakeToolchain, CMake
 
 PACKAGE_NAME = "sorted_array_tower"
-EXPORT_LIBS = ["or_else", "add_one"]
+EXPORT_LIBS = []
 
 class SortedArrayTower(ConanFile):
     name = PACKAGE_NAME

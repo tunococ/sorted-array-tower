@@ -95,86 +95,6 @@ else()
 endif()
 
 
-### TEMPLATE_BLOCK: Library with no cpp files
-#
-# To provide a consist interface for module and non-module versions, start with
-# a base library which is a non-module version.
-#
-# Note that the type of the library target must be INTERFACE here.
-add_library(or_else-legacy INTERFACE)
-target_sources(or_else-legacy
-  INTERFACE
-    FILE_SET HEADERS
-      FILES include/sorted_array_tower/or_else.hpp
-      BASE_DIRS include
-)
-
-if(NOT SORTED_ARRAY_TOWER_USE_MODULES)
-  # For the non-C++-module version, we simply define a passthrough library
-  # because or_else-legacy is already a valid library.
-  add_library(or_else INTERFACE)
-  target_link_libraries(or_else
-    INTERFACE
-      or_else-legacy
-  )
-else()
-  # For the C++-module version, we add the module interface files on top of
-  # the base library.
-  add_library(or_else)
-  target_compile_features(or_else PUBLIC cxx_std_20)
-  target_link_libraries(or_else
-    PUBLIC
-      or_else-legacy
-  )
-  target_sources(or_else
-    PUBLIC
-      FILE_SET CXX_MODULES
-        FILES modules/or_else.cppm
-  )
-endif()
-### TEMPLATE_BLOCK_END: Library with no cpp files
-
-
-### TEMPLATE_BLOCK: Library with cpp files
-#
-# To provide a consist interface for module and non-module versions, start with
-# a base library which is a non-module version.
-add_library(add_one-legacy)
-target_sources(add_one-legacy
-  PUBLIC
-    FILE_SET HEADERS
-      FILES include/sorted_array_tower/add_one.hpp
-      BASE_DIRS include
-  PRIVATE
-    src/add_one.cpp
-)
-
-if(NOT SORTED_ARRAY_TOWER_USE_MODULES)
-  # For the non-C++-module version, we simply define a passthrough library
-  # because add_one-legacy is already a valid library.
-  add_library(add_one INTERFACE)
-  target_link_libraries(add_one
-    INTERFACE
-      add_one-legacy
-  )
-else()
-  # For the C++-module version, we add the module interface files on top of
-  # the base library.
-  add_library(add_one)
-  target_compile_features(add_one PUBLIC cxx_std_20)
-  target_link_libraries(add_one
-    PUBLIC
-      add_one-legacy
-  )
-  target_sources(add_one
-    PUBLIC
-      FILE_SET CXX_MODULES
-        FILES modules/add_one.cppm
-  )
-endif()
-### TEMPLATE_BLOCK_END: Library with cpp files
-
-
 add_library(bounded_array-legacy INTERFACE)
 target_sources(bounded_array-legacy
   INTERFACE
@@ -217,8 +137,6 @@ target_sources(sorted_array_tower-legacy
 # Put all the libraries to include.
 target_link_libraries(sorted_array_tower-legacy
   INTERFACE
-    or_else
-    add_one
     skip_array
     bounded_array
 )
@@ -431,7 +349,7 @@ endif()
 
 # Installation rules
 if(SORTED_ARRAY_TOWER_USE_MODULES)
-  install(TARGETS or_else add_one bounded_array sorted_array_tower
+  install(TARGETS bounded_array sorted_array_tower
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
     RUNTIME DESTINATION bin
@@ -441,7 +359,7 @@ if(SORTED_ARRAY_TOWER_USE_MODULES)
     DESTINATION include
   )
 else()
-  install(TARGETS or_else add_one bounded_array sorted_array_tower
+  install(TARGETS bounded_array sorted_array_tower
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
     RUNTIME DESTINATION bin
