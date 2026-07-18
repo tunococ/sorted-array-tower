@@ -86,27 +86,6 @@ target("bounded_array")
     add_headerfiles("include/(sorted_array_tower/bounded_array.hpp)")
     add_includedirs("include", { public = true })
 
-target("or_else")
-    if has_config("use_modules") then
-        set_kind("static")
-        -- .cppm interface files must be made public.
-        add_files("modules/or_else.cppm", { public = true })
-    else
-        set_kind("headeronly")
-    end
-    add_headerfiles("include/(sorted_array_tower/or_else.hpp)")
-    add_includedirs("include", { public = true })
-
-target("add_one")
-    set_kind("static")
-    if has_config("use_modules") then
-        -- .cppm interface files must be made public.
-        add_files("modules/add_one.cppm", { public = true })
-    end
-    add_headerfiles("include/(sorted_array_tower/add_one.hpp)")
-    add_includedirs("include", { public = true })
-    add_files("src/add_one.cpp")
-
 target("sorted_array_tower")
     if has_config("use_modules") then
         set_kind("static")
@@ -116,8 +95,6 @@ target("sorted_array_tower")
         set_kind("headeronly")
     end
     add_deps(
-        "or_else",
-        "add_one",
         "skip_array",
         "bounded_array"
     )
@@ -129,8 +106,6 @@ target("tests")
     add_packages("doctest")
     add_files(
         "tests/test_main.cpp",
-        "tests/test_add_one.cpp",
-        "tests/test_or_else.cpp",
         "tests/test_skip_array.cpp",
         "tests/test_bounded_array.cpp"
     )
