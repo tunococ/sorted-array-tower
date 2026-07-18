@@ -8,16 +8,15 @@
 #pragma once
 
 #include <algorithm>
-#include <array>
 #include <cassert>
 #include <compare>
 #include <cstddef>
+#include <initializer_list>
 #include <iterator>
 #include <memory>
 #include <ranges>
+#include <stdexcept>
 #include <utility>
-#include <variant>
-#include <vector>
 
 namespace sorted_array_tower {
 
