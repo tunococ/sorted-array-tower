@@ -75,6 +75,17 @@ target("skip_array")
     add_headerfiles("include/(sorted_array_tower/skip_array.hpp)")
     add_includedirs("include", { public = true })
 
+target("bounded_array")
+    if has_config("use_modules") then
+        set_kind("static")
+        -- .cppm interface files must be made public.
+        add_files("modules/bounded_array.cppm", { public = true })
+    else
+        set_kind("headeronly")
+    end
+    add_headerfiles("include/(sorted_array_tower/bounded_array.hpp)")
+    add_includedirs("include", { public = true })
+
 target("or_else")
     if has_config("use_modules") then
         set_kind("static")
@@ -107,7 +118,8 @@ target("sorted_array_tower")
     add_deps(
         "or_else",
         "add_one",
-        "skip_array"
+        "skip_array",
+        "bounded_array"
     )
     add_headerfiles("include/(sorted_array_tower/sorted_array_tower.hpp)")
     add_includedirs("include", { public = true })
@@ -119,7 +131,8 @@ target("tests")
         "tests/test_main.cpp",
         "tests/test_add_one.cpp",
         "tests/test_or_else.cpp",
-        "tests/test_skip_array.cpp"
+        "tests/test_skip_array.cpp",
+        "tests/test_bounded_array.cpp"
     )
     add_deps("sorted_array_tower")
     if has_config("use_modules") then

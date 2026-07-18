@@ -55,5 +55,6 @@
 #pragma once
 
 #include "add_one.hpp"
+#include "bounded_array.hpp"
 #include "or_else.hpp"
 #include "skip_array.hpp"

@@ -175,6 +175,35 @@ endif()
 ### TEMPLATE_BLOCK_END: Library with cpp files
 
 
+add_library(bounded_array-legacy INTERFACE)
+target_sources(bounded_array-legacy
+  INTERFACE
+    FILE_SET HEADERS
+      FILES include/sorted_array_tower/bounded_array.hpp
+      BASE_DIRS include
+)
+
+if(NOT SORTED_ARRAY_TOWER_USE_MODULES)
+  add_library(bounded_array INTERFACE)
+  target_link_libraries(bounded_array
+    INTERFACE
+      bounded_array-legacy
+  )
+else()
+  add_library(bounded_array)
+  target_compile_features(bounded_array PUBLIC cxx_std_20)
+  target_link_libraries(bounded_array
+    PUBLIC
+      bounded_array-legacy
+  )
+  target_sources(bounded_array
+    PUBLIC
+      FILE_SET CXX_MODULES
+        FILES modules/bounded_array.cppm
+  )
+endif()
+
+
 ### TEMPLATE_BLOCK: Umbrella library
 #
 # "All" target that includes all libraries above.
@@ -191,6 +220,7 @@ target_link_libraries(sorted_array_tower-legacy
     or_else
     add_one
     skip_array
+    bounded_array
 )
 
 if(NOT SORTED_ARRAY_TOWER_USE_MODULES)
@@ -401,7 +431,7 @@ endif()
 
 # Installation rules
 if(SORTED_ARRAY_TOWER_USE_MODULES)
-  install(TARGETS or_else add_one sorted_array_tower
+  install(TARGETS or_else add_one bounded_array sorted_array_tower
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
     RUNTIME DESTINATION bin
@@ -411,7 +441,7 @@ if(SORTED_ARRAY_TOWER_USE_MODULES)
     DESTINATION include
   )
 else()
-  install(TARGETS or_else add_one sorted_array_tower
+  install(TARGETS or_else add_one bounded_array sorted_array_tower
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
     RUNTIME DESTINATION bin
