@@ -104,7 +104,7 @@ class BoundedArray {
     }
 
     constexpr pointer operator->() const {
-      return &(*array_)[index_];
+      return std::pointer_traits<pointer>::pointer_to((*array_)[index_]);
     }
 
     constexpr reference operator[](difference_type n) const {

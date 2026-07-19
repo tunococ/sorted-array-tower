@@ -5,6 +5,7 @@
 #include <deque>
 #include <initializer_list>
 #include <iterator>
+#include <memory_resource>
 #include <random>
 #include <stdexcept>
 #include <string>
@@ -768,6 +769,33 @@ TEST_CASE("exception safety: throwing element constructor does not leak") {
     // dst's old 3 elements were destroyed; the 2 partially-copied elements
     // were cleaned up; src's 5 remain.
     REQUIRE(Throwing::alive == 5);
+  }
+}
+
+TEST_CASE_TEMPLATE("pointer types", T, INT_TYPES_TO_TEST) {
+  using MemoryResource = std::pmr::unsynchronized_pool_resource;
+  MemoryResource memory_resource;
+  using Allocator = std::pmr::polymorphic_allocator<T>;
+  Allocator allocator(&memory_resource);
+
+  SUBCASE("pointer points to value_type, not cell_type") {
+    using Array = BoundedArray<T, Allocator>;
+    static_assert(std::is_same_v<typename Array::pointer, T*>);
+    static_assert(std::is_same_v<typename Array::const_pointer, T const*>);
+  }
+
+  SUBCASE("iterator operator-> returns value_type pointer") {
+    std::vector<T> v{1, 2, 3};
+    BoundedArray<T, Allocator> s(10, v.begin(), v.end(), allocator);
+    auto i = s.begin();
+    static_assert(std::is_same_v<decltype(i.operator->()), T*>);
+    REQUIRE(*i.operator->() == T(1));
+    REQUIRE(*i == T(1));
+
+    auto const& cs = s;
+    auto ci = cs.begin();
+    static_assert(std::is_same_v<decltype(ci.operator->()), T const*>);
+    REQUIRE(*ci.operator->() == T(1));
   }
 }
 
