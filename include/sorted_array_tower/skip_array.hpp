@@ -90,26 +90,29 @@ class SkipArray {
   /// The type of a single cell (a value or a displacement).
   using cell_type = SkipArrayCell<T>;
   /// The allocator type used to allocate cells.
-  using allocator_type =
+  using cell_allocator_type =
       std::allocator_traits<Allocator>::template rebind_alloc<cell_type>;
+  /// The allocator type used to allocate elements.
+  using allocator_type =
+      std::allocator_traits<Allocator>::template rebind_alloc<value_type>;
 
   /// An unsigned integer type used for sizes and displacements.
-  using size_type = std::allocator_traits<allocator_type>::size_type;
+  using size_type = std::allocator_traits<cell_allocator_type>::size_type;
   /// A two-element array storing forward and backward displacements.
   using displacement_type = SkipArrayDisplacement<size_type>;
   /// A signed integer type used for differences between iterators.
   using difference_type =
-      std::allocator_traits<allocator_type>::difference_type;
+      std::allocator_traits<cell_allocator_type>::difference_type;
   /// A pointer to an element.
   using pointer = std::allocator_traits<allocator_type>::pointer;
   /// A constant pointer to an element.
   using const_pointer = std::allocator_traits<allocator_type>::const_pointer;
 
   /// The underlying container type that stores the cells.
-  using array_type = BaseArray<cell_type, allocator_type>;
+  using array_type = BaseArray<cell_type, cell_allocator_type>;
 
  private:
-  allocator_type allocator_;
+  cell_allocator_type allocator_;
   mutable array_type base_array_;
   mutable size_type front_index_;
   size_type size_;
@@ -253,7 +256,7 @@ class SkipArray {
     }
 
     constexpr pointer operator->() const {
-      return &(*this);
+      return std::pointer_traits<pointer>::pointer_to(this->operator*());
     }
 
     constexpr Iterator& operator++() {
@@ -327,8 +330,8 @@ class SkipArray {
 
  public:
   constexpr SkipArray() noexcept(noexcept(array_type(allocator_)) &&
-                                 noexcept(allocator_type()))
-      : allocator_(allocator_type()),
+                                 noexcept(cell_allocator_type()))
+      : allocator_(cell_allocator_type()),
         base_array_(allocator_),
         front_index_(0),
         size_(0) {}
@@ -336,12 +339,12 @@ class SkipArray {
   /// @brief Copy-constructs a `SkipArray`, copying all cells and metadata.
   constexpr SkipArray(SkipArray const&) noexcept(
       noexcept(array_type(base_array_)) &&
-      noexcept(allocator_type())) = default;
+      noexcept(cell_allocator_type())) = default;
 
   /// @brief Move-constructs a `SkipArray`, leaving the moved-from array empty.
   constexpr SkipArray(SkipArray&& other) noexcept(
       noexcept(array_type(std::move(base_array_))) &&
-      noexcept(allocator_type(std::move(allocator_))))
+      noexcept(cell_allocator_type(std::move(allocator_))))
       : allocator_(std::move(other.allocator_)),
         base_array_(std::move(other.base_array_), allocator_),
         front_index_(other.front_index_),
@@ -374,7 +377,7 @@ class SkipArray {
 
   /// @brief Constructs an empty `SkipArray` using the supplied allocator.
   constexpr explicit SkipArray(Allocator const& allocator) noexcept(
-      noexcept(array_type(allocator_)) && noexcept(allocator_type(allocator_)))
+      noexcept(array_type(allocator_)) && noexcept(cell_allocator_type(allocator_)))
       : allocator_(allocator),
         base_array_(allocator_),
         front_index_(0),
@@ -386,7 +389,7 @@ class SkipArray {
           Allocator()) noexcept(noexcept(base_array_, count,
                                          cell_type(std::in_place_index<0>,
                                                    value_type())) &&
-                                noexcept(allocator_type(allocator_)))
+                                noexcept(cell_allocator_type(allocator_)))
       : allocator_(allocator),
         base_array_(count, cell_type(std::in_place_index<0>, value_type()),
                     allocator_),
@@ -399,7 +402,7 @@ class SkipArray {
           Allocator()) noexcept(noexcept(base_array_, count,
                                          cell_type(std::in_place_index<0>,
                                                    value)) &&
-                                noexcept(allocator_type(allocator_)))
+                                noexcept(cell_allocator_type(allocator_)))
       : allocator_(allocator),
         base_array_(count, cell_type(std::in_place_index<0>, value),
                     allocator_),
@@ -413,7 +416,7 @@ class SkipArray {
           Allocator()) noexcept(noexcept(array_type(InputCellIterator(first),
                                                     InputCellIterator(last),
                                                     allocator_)) &&
-                                noexcept(allocator_type(allocator_)))
+                                noexcept(cell_allocator_type(allocator_)))
       : allocator_(allocator),
         base_array_(InputCellIterator(first), InputCellIterator(last),
                     allocator_),
@@ -424,7 +427,7 @@ class SkipArray {
       SkipArray const& other,
       std::type_identity_t<Allocator> const&
           allocator) noexcept(noexcept(array_type(base_array_, allocator_)) &&
-                              noexcept(allocator_type(allocator_)))
+                              noexcept(cell_allocator_type(allocator_)))
       : allocator_(allocator),
         base_array_(other.base_array_, allocator),
         front_index_(other.front_index_),
@@ -435,7 +438,7 @@ class SkipArray {
       std::type_identity_t<Allocator> const&
           allocator) noexcept(noexcept(array_type(std::move(base_array_),
                                                   allocator_)) &&
-                              noexcept(allocator_type(allocator_)))
+                              noexcept(cell_allocator_type(allocator_)))
       : allocator_(allocator),
         base_array_(std::move(other.base_array_), allocator),
         front_index_(other.front_index_),
@@ -507,7 +510,7 @@ class SkipArray {
   }
 
   /// @brief Returns a copy of the allocator associated with the array.
-  constexpr allocator_type get_allocator() const noexcept {
+  constexpr cell_allocator_type get_allocator() const noexcept {
     return allocator_;
   }
 
