@@ -558,4 +558,31 @@ TEST_CASE_TEMPLATE("searches", SkipArrayType, SkipArrayTemplate<vector>,
   }
 }
 
+TEST_CASE_TEMPLATE("pointer types", T, INT_TYPES_TO_TEST) {
+  using MemoryResource = std::pmr::unsynchronized_pool_resource;
+  MemoryResource memory_resource;
+  using Allocator = std::pmr::polymorphic_allocator<T>;
+  Allocator allocator(&memory_resource);
+
+  SUBCASE("pointer points to value_type, not cell_type") {
+    using Array = SkipArray<T, Allocator>;
+    static_assert(std::is_same_v<typename Array::pointer, T*>);
+    static_assert(std::is_same_v<typename Array::const_pointer, T const*>);
+  }
+
+  SUBCASE("iterator operator-> returns value_type pointer") {
+    std::vector<T> v{1, 2, 3};
+    SkipArray<T, Allocator> s(v.begin(), v.end(), allocator);
+    auto i = s.begin();
+    static_assert(std::is_same_v<decltype(i.operator->()), T*>);
+    REQUIRE(*i.operator->() == T(1));
+    REQUIRE(*i == T(1));
+
+    auto const& cs = s;
+    auto ci = cs.begin();
+    static_assert(std::is_same_v<decltype(ci.operator->()), T const*>);
+    REQUIRE(*ci.operator->() == T(1));
+  }
+}
+
 TEST_SUITE_END();
