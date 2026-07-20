@@ -358,6 +358,10 @@ class SkipArray {
   constexpr SkipArray& operator=(SkipArray const& other) noexcept(
       noexcept(base_array_ = base_array_)) {
     base_array_ = other.base_array_;
+    if constexpr (std::allocator_traits<cell_allocator_type>::
+                      propagate_on_container_copy_assignment::value) {
+      allocator_ = other.allocator_;
+    }
     front_index_ = other.front_index_;
     size_ = other.size_;
     return *this;
@@ -367,6 +371,10 @@ class SkipArray {
   constexpr SkipArray& operator=(SkipArray&& other) noexcept(
       noexcept(base_array_ = std::move(base_array_))) {
     base_array_ = std::move(other.base_array_);
+    if constexpr (std::allocator_traits<cell_allocator_type>::
+                      propagate_on_container_move_assignment::value) {
+      allocator_ = std::move(other.allocator_);
+    }
     front_index_ = other.front_index_;
     size_ = other.size_;
     other.base_array_.clear();
