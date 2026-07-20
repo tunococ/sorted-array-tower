@@ -337,9 +337,24 @@ class SkipArray {
         size_(0) {}
 
   /// @brief Copy-constructs a `SkipArray`, copying all cells and metadata.
-  constexpr SkipArray(SkipArray const&) noexcept(
-      noexcept(array_type(base_array_)) &&
-      noexcept(cell_allocator_type())) = default;
+  ///
+  /// The allocator used is determined by
+  /// `std::allocator_traits<cell_allocator_type>::
+  /// select_on_container_copy_construction`, as required for standard
+  /// containers.
+  constexpr SkipArray(SkipArray const& other) noexcept(noexcept(
+      cell_allocator_type(
+          std::allocator_traits<cell_allocator_type>::
+              select_on_container_copy_construction(other.allocator_))) &&
+      noexcept(array_type(
+          other.base_array_,
+          std::allocator_traits<cell_allocator_type>::
+              select_on_container_copy_construction(other.allocator_))))
+      : allocator_(std::allocator_traits<cell_allocator_type>::
+                       select_on_container_copy_construction(other.allocator_)),
+        base_array_(other.base_array_, allocator_),
+        front_index_(other.front_index_),
+        size_(other.size_) {}
 
   /// @brief Move-constructs a `SkipArray`, leaving the moved-from array empty.
   constexpr SkipArray(SkipArray&& other) noexcept(
