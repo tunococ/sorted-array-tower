@@ -86,6 +86,17 @@ target("bounded_array")
     add_headerfiles("include/(sorted_array_tower/bounded_array.hpp)")
     add_includedirs("include", { public = true })
 
+target("bounded_vector")
+    if has_config("use_modules") then
+        set_kind("static")
+        -- .cppm interface files must be made public.
+        add_files("modules/bounded_vector.cppm", { public = true })
+    else
+        set_kind("headeronly")
+    end
+    add_headerfiles("include/(sorted_array_tower/bounded_vector.hpp)")
+    add_includedirs("include", { public = true })
+
 target("sorted_array_tower")
     if has_config("use_modules") then
         set_kind("static")
@@ -96,7 +107,8 @@ target("sorted_array_tower")
     end
     add_deps(
         "skip_array",
-        "bounded_array"
+        "bounded_array",
+        "bounded_vector"
     )
     add_headerfiles("include/(sorted_array_tower/sorted_array_tower.hpp)")
     add_includedirs("include", { public = true })
@@ -107,7 +119,8 @@ target("tests")
     add_files(
         "tests/test_main.cpp",
         "tests/test_skip_array.cpp",
-        "tests/test_bounded_array.cpp"
+        "tests/test_bounded_array.cpp",
+        "tests/test_bounded_vector.cpp"
     )
     add_deps("sorted_array_tower")
     if has_config("use_modules") then
