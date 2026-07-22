@@ -361,7 +361,9 @@ if(PROJECT_IS_TOP_LEVEL AND NOT (DEFINED BUILD_TESTING AND NOT BUILD_TESTING))
 
     target_sources(benchmark_sorted_array_tower
       PRIVATE
-        benchmarks/benchmark_main.cpp
+        benchmarks/benchmarks.hpp
+        benchmarks/benchmarks_main.cpp
+        benchmarks/benchmark_bounded_array.cpp
     )
 
     target_link_libraries(benchmark_sorted_array_tower

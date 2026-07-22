@@ -136,7 +136,11 @@ target("benchmarks")
     set_kind("binary")
     add_packages("nanobench")
     add_files(
-        "benchmarks/benchmark_main.cpp"
+        "benchmarks/benchmarks_main.cpp",
+        "benchmarks/benchmark_bounded_array.cpp"
+    )
+    add_headerfiles(
+        "benchmarks/benchmarks.hpp"
     )
     add_deps("sorted_array_tower")
     if has_config("use_modules") then
