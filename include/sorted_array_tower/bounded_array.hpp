@@ -385,16 +385,26 @@ class BoundedArray {
         front_index_(0),
         capacity_(other.capacity_),
         size_(0) {
-    data_ = allocate_storage(other.capacity_);
+    data_ = allocate_storage(capacity_);
+    if (other.size_ == 0) {
+      return;
+    }
+    size_type back_count = capacity_ - other.front_index_;
+    pointer src = other.data_ + other.front_index_;
     try {
-      for (size_type i = 0; i < other.size_; ++i) {
-        raw_construct(i, other[i]);
-        ++size_;
+      if (other.size_ <= back_count) {
+        std::uninitialized_copy(src, src + other.size_, data_);
+      } else {
+        std::uninitialized_copy(src, src + back_count, data_);
+        std::uninitialized_copy(other.data_,
+                                other.data_ + other.size_ - back_count,
+                                data_ + back_count);
       }
     } catch (...) {
-      destroy_and_deallocate_partial();
+      deallocate_storage(data_, capacity_);
       throw;
     }
+    size_ = other.size_;
   }
 
   /// @brief Move-constructs a `BoundedArray`, leaving the moved-from array
@@ -421,26 +431,35 @@ class BoundedArray {
       allocator_ = other.allocator_;
     }
     clear();
-    deallocate_storage(data_, capacity_);
-    data_ = nullptr;
-    capacity_ = 0;
-    front_index_ = 0;
-    size_ = 0;
-    data_ = allocate_storage(other.capacity_);
-    capacity_ = other.capacity_;
-    try {
-      for (size_type i = 0; i < other.size_; ++i) {
-        raw_construct(i, other[i]);
-        ++size_;
-      }
-    } catch (...) {
-      destroy_range(0, size_);
+    if (capacity_ != other.capacity_) {
       deallocate_storage(data_, capacity_);
-      data_ = nullptr;
-      capacity_ = 0;
-      size_ = 0;
-      throw;
+      data_ = allocate_storage(other.capacity_);
+      capacity_ = other.capacity_;
     }
+    if (other.size_ == 0) {
+      return *this;
+    }
+    size_type back_count = capacity_ - other.front_index_;
+    pointer src = other.data_ + other.front_index_;
+    if (other.size_ <= back_count) {
+      std::uninitialized_copy(src, src + other.size_, data_);
+    } else {
+      std::uninitialized_copy(src, src + back_count, data_);
+      try {
+        std::uninitialized_copy(other.data_,
+                                other.data_ + other.size_ - back_count,
+                                data_ + back_count);
+      } catch (...) {
+        for (size_type i = 0; i < back_count; ++i) {
+          std::allocator_traits<allocator_type>::destroy(allocator_, data_ + i);
+        }
+        deallocate_storage(data_, capacity_);
+        data_ = nullptr;
+        capacity_ = 0;
+        throw;
+      }
+    }
+    size_ = other.size_;
     return *this;
   }
 
@@ -688,6 +707,43 @@ class BoundedArray {
     destroy_range(front_index_, size_);
     front_index_ = 0;
     size_ = 0;
+  }
+
+  /// @brief Replaces the contents with `count` copies of `value`.
+  constexpr void assign(size_type count, value_type const& value) {
+    if (count > capacity_) {
+      set_capacity(count);
+    }
+    clear();
+    for (size_type i = 0; i < count; ++i) {
+      push_back(value);
+    }
+  }
+
+  /// @brief Replaces the contents with copies of the elements in the range
+  ///   `[first, last)`.
+  template <typename InputIterator>
+    requires(!std::is_convertible_v<InputIterator, size_type>)
+  constexpr void assign(InputIterator first, InputIterator last) {
+    size_type count = static_cast<size_type>(std::distance(first, last));
+    if (count > capacity_) {
+      set_capacity(count);
+    }
+    clear();
+    for (; first != last; ++first) {
+      push_back(*first);
+    }
+  }
+
+  /// @brief Replaces the contents with the elements of an initializer list.
+  constexpr void assign(std::initializer_list<value_type> init) {
+    if (init.size() > capacity_) {
+      set_capacity(static_cast<size_type>(init.size()));
+    }
+    clear();
+    for (auto const& v : init) {
+      push_back(v);
+    }
   }
 
   /// @brief Resizes the array to contain `count` elements.

@@ -336,6 +336,63 @@ TEST_CASE_TEMPLATE("assignment", T, INT_TYPES_TO_TEST) {
   }
 }
 
+TEST_CASE_TEMPLATE("assign", T, INT_TYPES_TO_TEST) {
+  SUBCASE("count and value") {
+    BoundedVector<T> s(3);
+    s.assign(2, T(7));
+    REQUIRE(s.size() == 2);
+    REQUIRE(s.capacity() == 3);
+    REQUIRE(s[0] == T(7));
+    REQUIRE(s[1] == T(7));
+  }
+
+  SUBCASE("range") {
+    BoundedVector<T> s(3);
+    vector<T> v = {T(1), T(2)};
+    s.assign(v.begin(), v.end());
+    REQUIRE(s.size() == 2);
+    REQUIRE(s.capacity() == 3);
+    REQUIRE(s[0] == T(1));
+    REQUIRE(s[1] == T(2));
+  }
+
+  SUBCASE("initializer_list") {
+    BoundedVector<T> s(3);
+    s.assign({T(1), T(2)});
+    REQUIRE(s.size() == 2);
+    REQUIRE(s.capacity() == 3);
+    REQUIRE(s[0] == T(1));
+    REQUIRE(s[1] == T(2));
+  }
+
+  SUBCASE("grows capacity when needed") {
+    BoundedVector<T> s(2);
+    s.assign(3, T(9));
+    REQUIRE(s.size() == 3);
+    REQUIRE(s.capacity() == 3);
+    REQUIRE(s[0] == T(9));
+    REQUIRE(s[1] == T(9));
+    REQUIRE(s[2] == T(9));
+  }
+
+  SUBCASE("clears previous contents") {
+    BoundedVector<T> s(5, {T(1), T(2), T(3)});
+    s.assign(2, T(8));
+    REQUIRE(s.size() == 2);
+    REQUIRE(s[0] == T(8));
+    REQUIRE(s[1] == T(8));
+  }
+
+  SUBCASE("replaces with fewer elements") {
+    BoundedVector<T> s(5, {T(1), T(2), T(3), T(4)});
+    s.assign(2, T(5));
+    REQUIRE(s.size() == 2);
+    REQUIRE(s.capacity() == 5);
+    REQUIRE(s[0] == T(5));
+    REQUIRE(s[1] == T(5));
+  }
+}
+
 struct Tracked {
   static inline int alive = 0;
   static constexpr int kDestroyed = -424242;
