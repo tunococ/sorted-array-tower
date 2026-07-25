@@ -10,4 +10,5 @@ export module sorted_array_tower;
 // in sorted_array_tower.hpp.
 export import sorted_array_tower.bounded_array;
 export import sorted_array_tower.bounded_vector;
+export import sorted_array_tower.binary_heap;
 export import sorted_array_tower.skip_array;

@@ -45,4 +45,5 @@
 
 #include "bounded_array.hpp"
 #include "bounded_vector.hpp"
+#include "binary_heap.hpp"
 #include "skip_array.hpp"
