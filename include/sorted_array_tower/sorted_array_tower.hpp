@@ -47,3 +47,4 @@
 #include "bounded_vector.hpp"
 #include "binary_heap.hpp"
 #include "skip_array.hpp"
+#include "merge_iterator.hpp"

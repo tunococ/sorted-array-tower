@@ -15,14 +15,14 @@ void merge(InputList&& list_1, InputList&& list_2, OutputList& output,
   auto i_1 = list_1.begin();
   auto i_2 = list_2.begin();
 
-  constexpr static push =
+  constexpr static auto push =
       [](OutputList& o, auto&& i) {
         if constexpr (std::is_rvalue_reference_v<InputList>) {
           o.emplace_back(std::move(*i));
         } else {
           o.emplace_back(*i);
         }
-      }
+      };
 
   while (true) {
     if (i_1 == list_1.end()) {
@@ -127,10 +127,9 @@ class MergeIterator {
       }
       return index_1 < index_2;
     }
-  }
+  };
 
-  BinaryHeap<size_type, CompareIndices>
-      forward_heap_{CompareIndices{this}};
+  BinaryHeap<size_type, CompareIndices> forward_heap_;
 
   template <typename Triples>
   constexpr MergeIterator(MergeIterator const& other, Triples&& triples)
@@ -140,7 +139,7 @@ class MergeIterator {
                       other.forward_heap_.get_allocator()) {
     forward_heap_.reserve(triples_.size());
     for (size_type i = 0; i < triples_.size(); ++i) {
-      forward_heap.emplace(i);
+      forward_heap_.emplace(i);
     }
   }
 
@@ -148,7 +147,9 @@ class MergeIterator {
   constexpr MergeIterator() : MergeIterator(Allocator()) {}
   constexpr explicit MergeIterator(Compare const& comp,
                                    Allocator const& alloc = Allocator())
-      : compare_(comp), triples_(IteratorTripleAllocator(alloc)) {}
+      : compare_(comp),
+        triples_(IteratorTripleAllocator(alloc)),
+        forward_heap_(CompareIndices(this), IteratorTripleAllocator(alloc)) {}
   constexpr explicit MergeIterator(Allocator const& alloc)
       : MergeIterator(Compare(), alloc) {}
 
@@ -192,14 +193,21 @@ class MergeIterator {
   }
 
   constexpr size_type add_list(iterator begin, iterator end,
-                               iterator current = begin) {
+                               iterator current) {
     size_type index = triples_.size();
     triples_.emplace_back(begin, end, current);
     forward_heap_.emplace(index);
     return index;
   }
 
+  constexpr size_type add_list(iterator begin, iterator end) {
+    return add_list(begin, end, begin);
+  }
+
   constexpr bool is_past_end() const {
+    if (forward_heap_.empty()) {
+      return true;
+    }
     size_type index = forward_heap_.top();
     return triples_[index].at_end();
   }
@@ -248,13 +256,19 @@ class MergeIterator {
     return *this;
   }
 
-  constexpr MergeIterator operator++(int) const {
+  constexpr MergeIterator operator++(int) {
     MergeIterator old = *this;
     operator++();
     return old;
   }
 
   constexpr bool operator==(MergeIterator const& other) const {
+    if (is_past_end()) {
+      return other.is_past_end();
+    }
+    if (other.is_past_end()) {
+      return false;
+    }
     return location() == other.location();
   }
 
