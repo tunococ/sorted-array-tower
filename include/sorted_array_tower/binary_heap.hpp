@@ -54,10 +54,14 @@ class BinaryHeap {
   using reference = value_type&;
   using const_reference = value_type const&;
 
- private:
+ protected:
+  using entry_list_type = std::vector<entry_type, allocator_type>;
+  using index_list_type = std::vector<size_type, index_allocator_type>;
+
   [[no_unique_address]] key_compare compare_;
-  std::vector<entry_type, allocator_type> entries_;
-  std::vector<size_type, index_allocator_type> id_to_index_;
+  entry_list_type entries_;
+  index_list_type id_to_index_;
+
   constexpr static size_type INVALID_INDEX =
       std::numeric_limits<size_type>::max();
 
@@ -67,83 +71,19 @@ class BinaryHeap {
     return id_to_index_[id];
   }
 
-  template <typename U>
-  constexpr void increase_key_at_index(size_type index, U&& value) {
-    if (compare_(value, entries_[index].value)) {
-      return;
-    }
-    entries_[index].value = std::forward<U>(value);
-    bubble_down(index);
-    return;
-  }
-
-  template <typename U>
-  constexpr void decrease_key_at_index(size_type index, U&& value) {
-    if (compare_(entries_[index].value, value)) {
-      return;
-    }
-    entries_[index].value = std::forward<U>(value);
-    bubble_up(index);
-    return;
-  }
-
-  template <typename U>
-  constexpr void modify_key_at_index(size_type index, U&& value) {
-    if (compare_(entries_[index].value, value)) {
-      entries_[index].value = std::forward<U>(value);
-      bubble_down(index);
-      return;
-    }
-    entries_[index].value = std::forward<U>(value);
-    bubble_up(index);
-  }
-
- public:
-  BinaryHeap() : BinaryHeap(key_compare()) {}
-  explicit BinaryHeap(key_compare const& comp,
-                      Allocator const& alloc = Allocator())
-      : compare_(comp),
-        entries_(allocator_type(alloc)),
-        id_to_index_(index_allocator_type(alloc)) {}
-  explicit BinaryHeap(Allocator const& alloc)
-      : compare_(key_compare()),
-        entries_(allocator_type(alloc)),
-        id_to_index_(index_allocator_type(alloc)) {}
-
-  BinaryHeap(BinaryHeap const&) = default;
-  BinaryHeap(BinaryHeap&&) = default;
-
-  BinaryHeap& operator=(BinaryHeap const&) = default;
-  BinaryHeap& operator=(BinaryHeap&&) = default;
-
-  constexpr size_type size() const noexcept {
-    return entries_.size();
-  }
-
-  constexpr bool empty() const noexcept {
-    return entries_.empty();
-  }
-
-  constexpr void reserve(size_type capacity) {
-    entries_.reserve(capacity);
-    id_to_index_.reserve(capacity);
-  }
-
-  constexpr void bubble_up(size_type index) {
+  constexpr bool bubble_up(size_type index) {
     if (index == 0) {
-      return;
+      return false;
     }
     size_type parent = (index - 1) / 2;
     entry_type& parent_entry = entries_[parent];
     if (!compare_(entries_[index].value, parent_entry.value)) {
-      return;
+      return false;
     }
 
-    // Save the starting entry.
     value_type value = std::move(entries_[index].value);
     size_type id = entries_[index].id;
 
-    // Shift the parent entry down.
     entries_[index].value = std::move(parent_entry.value);
     entries_[index].id = parent_entry.id;
     id_to_index_[parent_entry.id] = index;
@@ -159,22 +99,21 @@ class BinaryHeap {
         break;
       }
 
-      // Shift the parent entry down.
       entries_[index].value = std::move(parent_entry.value);
       entries_[index].id = parent_entry.id;
       id_to_index_[parent_entry.id] = index;
     }
 
-    // Put in the starting entry.
     entries_[index].value = std::move(value);
     entries_[index].id = id;
     id_to_index_[id] = index;
+    return true;
   }
 
-  constexpr void bubble_down(size_type index) {
+  constexpr bool bubble_down(size_type index) {
     size_type child = index * 2 + 1;
     if (child >= entries_.size()) {
-      return;
+      return false;
     }
     if (child + 1 < entries_.size() &&
         compare_(entries_[child + 1].value, entries_[child].value)) {
@@ -182,14 +121,12 @@ class BinaryHeap {
     }
     entry_type& child_entry = entries_[child];
     if (!compare_(child_entry.value, entries_[index].value)) {
-      return;
+      return false;
     }
 
-    // Save the starting entry.
     value_type value = std::move(entries_[index].value);
     size_type id = entries_[index].id;
 
-    // Shift the child entry up.
     entries_[index].value = std::move(child_entry.value);
     entries_[index].id = child_entry.id;
     id_to_index_[child_entry.id] = index;
@@ -209,16 +146,159 @@ class BinaryHeap {
         break;
       }
 
-      // Shift the child entry up.
       entries_[index].value = std::move(child_entry.value);
       entries_[index].id = child_entry.id;
       id_to_index_[child_entry.id] = index;
     }
 
-    // Put in the starting entry.
     entries_[index].value = std::move(value);
     entries_[index].id = id;
     id_to_index_[id] = index;
+    return true;
+  }
+
+  template <typename U>
+  constexpr void set_at_index(size_type index, U&& value) {
+    if (compare_(entries_[index].value, value)) {
+      entries_[index].value = std::forward<U>(value);
+      bubble_down(index);
+      return;
+    }
+    entries_[index].value = std::forward<U>(value);
+    bubble_up(index);
+  }
+
+  constexpr void modify_key_at_index(size_type index) {
+    if (!bubble_up(index)) {
+      bubble_down(index);
+    }
+  }
+
+  // An input iterator transformer that takes a value and wraps it in a
+  // cell_type.
+  template <typename InputIterator>
+  struct InputEntryIterator {
+    using iterator_category = std::input_iterator_tag;
+    using iterator_concept = std::input_iterator_tag;
+    using value_type = entry_type;
+    using difference_type = entry_list_type::difference_type;
+    using pointer = entry_list_type::pointer;
+    using reference = entry_type;
+
+    size_type id{0};
+    InputIterator it;
+
+    constexpr InputEntryIterator() noexcept(noexcept(InputIterator())) =
+        default;
+    constexpr InputEntryIterator(InputIterator i) noexcept(
+        noexcept(InputIterator(i)))
+        : it(i) {}
+
+    constexpr reference operator*() const
+        noexcept(noexcept(entry_type(id, *it))) {
+      return entry_type(id, *it);
+    }
+
+    constexpr InputEntryIterator& operator++() noexcept(noexcept(++it)) {
+      ++it;
+      ++id;
+      return *this;
+    }
+
+    constexpr InputEntryIterator operator++(int) noexcept(
+        noexcept(InputEntryIterator(*this)) && noexcept(++(*this))) {
+      InputEntryIterator tmp = *this;
+      ++(*this);
+      return tmp;
+    }
+
+    constexpr bool operator==(InputEntryIterator const& other) const {
+      return it == other.it;
+    }
+  };
+
+ public:
+  constexpr BinaryHeap() : BinaryHeap(key_compare()) {}
+  constexpr explicit BinaryHeap(key_compare const& comp,
+                                Allocator const& alloc = Allocator())
+      : compare_(comp),
+        entries_(allocator_type(alloc)),
+        id_to_index_(index_allocator_type(alloc)) {}
+  constexpr explicit BinaryHeap(Allocator const& alloc)
+      : compare_(key_compare()),
+        entries_(allocator_type(alloc)),
+        id_to_index_(index_allocator_type(alloc)) {}
+
+  constexpr BinaryHeap(BinaryHeap const&) = default;
+  constexpr BinaryHeap(BinaryHeap&& other)
+      : compare_(other.compare_),
+        entries_(std::move(other.entries_)),
+        id_to_index_(std::move(other.id_to_index_)) {
+    other.entries_.clear();
+    other.id_to_index_.clear();
+  }
+
+  constexpr BinaryHeap& operator=(BinaryHeap const&) = default;
+  constexpr BinaryHeap& operator=(BinaryHeap&& other) {
+    entries_ = std::move(other.entries_);
+    id_to_index_ = std::move(other.id_to_index_);
+    other.entries_.clear();
+    other.id_to_index_.clear();
+    return *this;
+  }
+
+  template <typename InputIterator>
+  constexpr BinaryHeap(InputIterator first, InputIterator last,
+                       Compare const& comp = Compare(),
+                       Allocator const& alloc = Allocator())
+      : compare_(comp),
+        entries_(InputEntryIterator(first), InputEntryIterator(last),
+                 allocator_type(alloc)),
+        id_to_index_(index_allocator_type(alloc)) {
+    id_to_index_.resize(entries_.size());
+    for (size_type i = 0; i < id_to_index_.size(); ++i) {
+      id_to_index_[i] = i;
+    }
+    build_heap();
+  }
+
+  template <typename InputIterator>
+  constexpr BinaryHeap(InputIterator first, InputIterator last,
+                       Allocator const& alloc)
+      : BinaryHeap(first, last, Compare(), alloc) {}
+
+  constexpr allocator_type get_allocator() const {
+    return entries_.get_allocator();
+  }
+
+  constexpr key_compare key_comp() const {
+    return compare_;
+  }
+
+  constexpr value_compare value_comp() const {
+    return compare_;
+  }
+
+  constexpr void set_comp(key_compare const& comp) {
+    compare_ = comp;
+  }
+
+  constexpr size_type size() const noexcept {
+    return entries_.size();
+  }
+
+  constexpr bool empty() const noexcept {
+    return entries_.empty();
+  }
+
+  constexpr void reserve(size_type capacity) {
+    entries_.reserve(capacity);
+    id_to_index_.reserve(capacity);
+  }
+
+  constexpr void clear() {
+    entries_.clear();
+    id_to_index_.clear();
   }
 
   template <typename... Args>
@@ -268,39 +348,59 @@ class BinaryHeap {
     return at(id);
   }
 
-  template <typename U>
-  constexpr void increase_key(size_type id, U&& value) {
-    increase_key_at_index(get_index(id), std::forward<U>(value));
-    return;
+  constexpr void increase_key(size_type id) {
+    bubble_down(get_index(id));
+  }
+
+  constexpr void decrease_key(size_type id) {
+    bubble_up(get_index(id));
   }
 
   template <typename U>
-  constexpr void decrease_key(size_type id, U&& value) {
-    decrease_key_at_index(get_index(id), std::forward<U>(value));
-    return;
+  constexpr void set(size_type id, U&& value) {
+    set_at_index(get_index(id), std::forward<U>(value));
+  }
+
+  constexpr void modify_key(size_type id) {
+    modify_key_at_index(get_index(id));
+  }
+
+  constexpr void increase_top_key() {
+    bubble_down(0);
   }
 
   template <typename U>
-  constexpr void modify_key(size_type id, U&& value) {
-    size_type index = get_index(id);
-    modify_key_at_index(index, std::forward<U>(value));
+  constexpr void set_top(U&& value) {
+    if (!compare_(entries_[0].value, value)) {
+      entries_[0].value = std::forward<U>(value);
+      return;
+    }
+    entries_[0].value = std::forward<U>(value);
+    increase_top_key();
   }
 
-  template <typename U>
-  constexpr void increase_top_key(U&& value) {
-    increase_key_at_index(0, std::forward<U>(value));
-    return;
+  constexpr void modify_top_key() {
+    increase_top_key();
   }
 
-  template <typename U>
-  constexpr void decrease_top_key(U&& value) {
-    decrease_key_at_index(0, std::forward<U>(value));
-    return;
+  constexpr void build_heap() {
+    if (size() <= 1) {
+      return;
+    }
+    for (size_type i = size() / 2 - 1; i > 0; --i) {
+      bubble_down(i);
+    }
+    bubble_down(0);
   }
 
-  template <typename U>
-  constexpr void modify_top_key(U&& value) {
-    modify_key_at_index(0, std::forward<U>(value));
+  template <typename InputIterator>
+  constexpr void assign(InputIterator first, InputIterator last) {
+    entries_.assign(InputEntryIterator(first), InputEntryIterator(last));
+    id_to_index_.resize(entries_.size());
+    for (size_type i = 0; i < id_to_index_.size(); ++i) {
+      id_to_index_[i] = i;
+    }
+    build_heap();
   }
 };
 
