@@ -10,5 +10,6 @@ export module sorted_array_tower.merge_iterator;
 export namespace sorted_array_tower {
 
 using sorted_array_tower::MergeIterator;
+using sorted_array_tower::BidirectionalMergeIterator;
 
 }  // namespace sorted_array_tower

@@ -182,6 +182,35 @@ else()
 endif()
 
 
+add_library(merge_iterator-legacy INTERFACE)
+target_sources(merge_iterator-legacy
+  INTERFACE
+    FILE_SET HEADERS
+      FILES include/sorted_array_tower/merge_iterator.hpp
+      BASE_DIRS include
+)
+
+if(NOT SORTED_ARRAY_TOWER_USE_MODULES)
+  add_library(merge_iterator INTERFACE)
+  target_link_libraries(merge_iterator
+    INTERFACE
+      merge_iterator-legacy
+  )
+else()
+  add_library(merge_iterator)
+  target_compile_features(merge_iterator PUBLIC cxx_std_20)
+  target_link_libraries(merge_iterator
+    PUBLIC
+      merge_iterator-legacy
+  )
+  target_sources(merge_iterator
+    PUBLIC
+      FILE_SET CXX_MODULES
+        FILES modules/merge_iterator.cppm
+  )
+endif()
+
+
 ### TEMPLATE_BLOCK: Umbrella library
 #
 # "All" target that includes all libraries above.
@@ -199,6 +228,7 @@ target_link_libraries(sorted_array_tower-legacy
     bounded_array
     bounded_vector
     binary_heap
+    merge_iterator
 )
 
 if(NOT SORTED_ARRAY_TOWER_USE_MODULES)
