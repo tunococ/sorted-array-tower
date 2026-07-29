@@ -72,6 +72,8 @@ class MergeIterator {
   using key_compare = Compare;
   using value_compare = key_compare;
 
+  using location_type = std::pair<size_type, iterator>;
+
  protected:
   [[no_unique_address]] key_compare compare_;
 
@@ -230,7 +232,7 @@ class MergeIterator {
     return output;
   }
 
-  constexpr std::pair<size_type, iterator> location() const {
+  constexpr location_type location() const {
     size_type index = forward_heap_.top();
     return std::make_pair(index, triples_[index].current);
   }
