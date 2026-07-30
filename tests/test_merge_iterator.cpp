@@ -239,7 +239,8 @@ TEST_CASE_TEMPLATE("move assignment", T, INT_TYPES_TO_TEST) {
   REQUIRE(*it2 == T(2));
 }
 
-TEST_CASE_TEMPLATE("copy constructor preserves equality", T, INT_TYPES_TO_TEST) {
+TEST_CASE_TEMPLATE("copy constructor preserves equality", T,
+                   INT_TYPES_TO_TEST) {
   vector<T> v1{1, 4};
   vector<T> v2{2, 5};
 
@@ -353,7 +354,8 @@ TEST_CASE_TEMPLATE("bidirectional default constructor", T, INT_TYPES_TO_TEST) {
   REQUIRE(it.is_at_begin());
 }
 
-TEST_CASE_TEMPLATE("bidirectional forward and backward iteration", T, INT_TYPES_TO_TEST) {
+TEST_CASE_TEMPLATE("bidirectional forward and backward iteration", T,
+                   INT_TYPES_TO_TEST) {
   vector<T> v1{1, 4, 7};
   vector<T> v2{2, 5, 8};
   vector<T> v3{3, 6, 9};
@@ -379,7 +381,8 @@ TEST_CASE_TEMPLATE("bidirectional forward and backward iteration", T, INT_TYPES_
   REQUIRE(it.is_at_begin());
 }
 
-TEST_CASE_TEMPLATE("bidirectional post-increment and post-decrement", T, INT_TYPES_TO_TEST) {
+TEST_CASE_TEMPLATE("bidirectional post-increment and post-decrement", T,
+                   INT_TYPES_TO_TEST) {
   vector<T> v1{1, 3, 5};
   vector<T> v2{2, 4, 6};
 
@@ -415,7 +418,8 @@ TEST_CASE_TEMPLATE("bidirectional custom comparator", T, INT_TYPES_TO_TEST) {
   vector<T> v1{5, 4, 3};
   vector<T> v2{10, 9, 8};
 
-  BidirectionalMergeIterator<typename vector<T>::iterator, greater<T>> it{greater<T>()};
+  BidirectionalMergeIterator<typename vector<T>::iterator, greater<T>> it{
+      greater<T>()};
   it.add_list(v1.begin(), v1.end());
   it.add_list(v2.begin(), v2.end());
 
@@ -435,7 +439,8 @@ TEST_CASE_TEMPLATE("bidirectional custom comparator", T, INT_TYPES_TO_TEST) {
   REQUIRE(it.is_at_begin());
 }
 
-TEST_CASE_TEMPLATE("bidirectional tie-breaking with equal predecessors", T, INT_TYPES_TO_TEST) {
+TEST_CASE_TEMPLATE("bidirectional tie-breaking with equal predecessors", T,
+                   INT_TYPES_TO_TEST) {
   vector<T> v1{1, 2};
   vector<T> v2{1, 2};
 
@@ -466,7 +471,8 @@ TEST_CASE_TEMPLATE("bidirectional tie-breaking with equal predecessors", T, INT_
   REQUIRE(it == it2);
 }
 
-TEST_CASE_TEMPLATE("bidirectional identity --++ and ++--", T, INT_TYPES_TO_TEST) {
+TEST_CASE_TEMPLATE("bidirectional identity --++ and ++--", T,
+                   INT_TYPES_TO_TEST) {
   vector<T> v1{1, 2, 3};
   vector<T> v2{1, 2, 3};
 
@@ -504,7 +510,8 @@ TEST_CASE_TEMPLATE("bidirectional copy and move", T, INT_TYPES_TO_TEST) {
   REQUIRE(*it3 == T(2));
 }
 
-TEST_CASE_TEMPLATE("bidirectional copy constructor preserves equality", T, INT_TYPES_TO_TEST) {
+TEST_CASE_TEMPLATE("bidirectional copy constructor preserves equality", T,
+                   INT_TYPES_TO_TEST) {
   vector<T> v1{1, 4};
   vector<T> v2{2, 5};
 
@@ -518,7 +525,8 @@ TEST_CASE_TEMPLATE("bidirectional copy constructor preserves equality", T, INT_T
   REQUIRE(it == it2);
 }
 
-TEST_CASE_TEMPLATE("bidirectional copy assignment preserves equality", T, INT_TYPES_TO_TEST) {
+TEST_CASE_TEMPLATE("bidirectional copy assignment preserves equality", T,
+                   INT_TYPES_TO_TEST) {
   vector<T> v1{1, 4};
   vector<T> v2{2, 5};
 
@@ -562,7 +570,8 @@ TEST_CASE_TEMPLATE("bidirectional post-decrement", T, INT_TYPES_TO_TEST) {
   REQUIRE(*it == T(3));
 }
 
-TEST_CASE_TEMPLATE("bidirectional add_list with custom current", T, INT_TYPES_TO_TEST) {
+TEST_CASE_TEMPLATE("bidirectional add_list with custom current", T,
+                   INT_TYPES_TO_TEST) {
   vector<T> v1{1, 2, 3, 4, 5};
 
   BidirectionalMergeIterator<typename vector<T>::iterator> it;
@@ -624,6 +633,306 @@ TEST_CASE_TEMPLATE("bidirectional fuzz test", T, INT_TYPES_TO_TEST) {
       REQUIRE(it.is_past_end());
     }
   }
+}
+
+TEST_CASE_TEMPLATE("constructor from range", T, INT_TYPES_TO_TEST) {
+  vector<T> v1{1, 4, 7};
+  vector<T> v2{2, 5, 8};
+  vector<T> v3{3, 6, 9};
+
+  using Iterator = typename vector<T>::iterator;
+  using MergeIt = MergeIterator<Iterator>;
+  using Triple = typename MergeIt::IteratorTriple;
+
+  vector<Triple> triples;
+  triples.emplace_back(v1.begin(), v1.end());
+  triples.emplace_back(v2.begin(), v2.end());
+  triples.emplace_back(v3.begin(), v3.end());
+
+  MergeIt it(triples.begin(), triples.end());
+
+  vector<T> expected{1, 2, 3, 4, 5, 6, 7, 8, 9};
+  for (size_t i = 0; i < expected.size(); ++i) {
+    REQUIRE_FALSE(it.is_past_end());
+    CHECK(*it == expected[i]);
+    ++it;
+  }
+  REQUIRE(it.is_past_end());
+}
+
+TEST_CASE_TEMPLATE("constructor from range with custom comparator", T,
+                   INT_TYPES_TO_TEST) {
+  vector<T> v1{5, 4, 3};
+  vector<T> v2{10, 9, 8};
+
+  using Iterator = typename vector<T>::iterator;
+  using MergeIt = MergeIterator<Iterator, greater<T>>;
+  using Triple = typename MergeIt::IteratorTriple;
+
+  vector<Triple> triples;
+  triples.emplace_back(v1.begin(), v1.end());
+  triples.emplace_back(v2.begin(), v2.end());
+
+  MergeIt it(triples.begin(), triples.end(), greater<T>());
+
+  vector<T> expected{10, 9, 8, 5, 4, 3};
+  for (size_t i = 0; i < expected.size(); ++i) {
+    REQUIRE_FALSE(it.is_past_end());
+    CHECK(*it == expected[i]);
+    ++it;
+  }
+  REQUIRE(it.is_past_end());
+}
+
+TEST_CASE_TEMPLATE("constructor from range with allocator", T,
+                   INT_TYPES_TO_TEST) {
+  vector<T> v1{1, 4};
+  vector<T> v2{2, 5};
+
+  using Iterator = typename vector<T>::iterator;
+  using MergeIt = MergeIterator<Iterator>;
+  using Triple = typename MergeIt::IteratorTriple;
+
+  vector<Triple> triples;
+  triples.emplace_back(v1.begin(), v1.end());
+  triples.emplace_back(v2.begin(), v2.end());
+
+  std::allocator<Iterator> alloc;
+  MergeIt it(triples.begin(), triples.end(), alloc);
+
+  vector<T> expected{1, 2, 4, 5};
+  for (size_t i = 0; i < expected.size(); ++i) {
+    REQUIRE_FALSE(it.is_past_end());
+    CHECK(*it == expected[i]);
+    ++it;
+  }
+  REQUIRE(it.is_past_end());
+}
+
+TEST_CASE_TEMPLATE("assign from range", T, INT_TYPES_TO_TEST) {
+  vector<T> v1{1, 4, 7};
+  vector<T> v2{2, 5, 8};
+  vector<T> v3{3, 6, 9};
+
+  using Iterator = typename vector<T>::iterator;
+  using MergeIt = MergeIterator<Iterator>;
+  using Triple = typename MergeIt::IteratorTriple;
+
+  vector<Triple> triples;
+  triples.emplace_back(v1.begin(), v1.end());
+  triples.emplace_back(v2.begin(), v2.end());
+  triples.emplace_back(v3.begin(), v3.end());
+
+  MergeIt it;
+  it.assign(triples.begin(), triples.end());
+
+  vector<T> expected{1, 2, 3, 4, 5, 6, 7, 8, 9};
+  for (size_t i = 0; i < expected.size(); ++i) {
+    REQUIRE_FALSE(it.is_past_end());
+    CHECK(*it == expected[i]);
+    ++it;
+  }
+  REQUIRE(it.is_past_end());
+}
+
+TEST_CASE_TEMPLATE("assign replaces existing content", T, INT_TYPES_TO_TEST) {
+  vector<T> v1{1, 4};
+  vector<T> v2{2, 5};
+  vector<T> v3{3, 6, 7, 8};
+
+  using Iterator = typename vector<T>::iterator;
+  using MergeIt = MergeIterator<Iterator>;
+  using Triple = typename MergeIt::IteratorTriple;
+
+  vector<Triple> triples1;
+  triples1.emplace_back(v1.begin(), v1.end());
+  triples1.emplace_back(v2.begin(), v2.end());
+
+  MergeIt it(triples1.begin(), triples1.end());
+  ++it;
+  ++it;
+  REQUIRE(*it == T(4));
+
+  vector<Triple> triples2;
+  triples2.emplace_back(v3.begin(), v3.end());
+  it.assign(triples2.begin(), triples2.end());
+
+  vector<T> expected{3, 6, 7, 8};
+  for (size_t i = 0; i < expected.size(); ++i) {
+    REQUIRE_FALSE(it.is_past_end());
+    CHECK(*it == expected[i]);
+    ++it;
+  }
+  REQUIRE(it.is_past_end());
+}
+
+TEST_CASE_TEMPLATE("bidirectional constructor from range", T,
+                   INT_TYPES_TO_TEST) {
+  vector<T> v1{1, 4, 7};
+  vector<T> v2{2, 5, 8};
+  vector<T> v3{3, 6, 9};
+
+  using Iterator = typename vector<T>::iterator;
+  using BMergeIt = BidirectionalMergeIterator<Iterator>;
+  using Triple = typename BMergeIt::IteratorTriple;
+
+  vector<Triple> triples;
+  triples.emplace_back(v1.begin(), v1.end());
+  triples.emplace_back(v2.begin(), v2.end());
+  triples.emplace_back(v3.begin(), v3.end());
+
+  BMergeIt it(triples.begin(), triples.end());
+
+  vector<T> expected{1, 2, 3, 4, 5, 6, 7, 8, 9};
+  for (size_t i = 0; i < expected.size(); ++i) {
+    REQUIRE_FALSE(it.is_past_end());
+    CHECK(*it == expected[i]);
+    ++it;
+  }
+  REQUIRE(it.is_past_end());
+
+  for (size_t i = expected.size(); i > 0; --i) {
+    --it;
+    REQUIRE_FALSE(it.is_past_end());
+    CHECK(*it == expected[i - 1]);
+  }
+  REQUIRE(it.is_at_begin());
+}
+
+TEST_CASE_TEMPLATE(
+    "bidirectional constructor from range with custom comparator", T,
+    INT_TYPES_TO_TEST) {
+  vector<T> v1{5, 4, 3};
+  vector<T> v2{10, 9, 8};
+
+  using Iterator = typename vector<T>::iterator;
+  using BMergeIt = BidirectionalMergeIterator<Iterator, greater<T>>;
+  using Triple = typename BMergeIt::IteratorTriple;
+
+  vector<Triple> triples;
+  triples.emplace_back(v1.begin(), v1.end());
+  triples.emplace_back(v2.begin(), v2.end());
+
+  BMergeIt it(triples.begin(), triples.end(), greater<T>());
+
+  vector<T> expected{10, 9, 8, 5, 4, 3};
+  for (size_t i = 0; i < expected.size(); ++i) {
+    REQUIRE_FALSE(it.is_past_end());
+    CHECK(*it == expected[i]);
+    ++it;
+  }
+  REQUIRE(it.is_past_end());
+
+  for (size_t i = expected.size(); i > 0; --i) {
+    --it;
+    REQUIRE_FALSE(it.is_past_end());
+    CHECK(*it == expected[i - 1]);
+  }
+  REQUIRE(it.is_at_begin());
+}
+
+TEST_CASE_TEMPLATE("bidirectional constructor from range with allocator", T,
+                   INT_TYPES_TO_TEST) {
+  vector<T> v1{1, 4};
+  vector<T> v2{2, 5};
+
+  using Iterator = typename vector<T>::iterator;
+  using BMergeIt = BidirectionalMergeIterator<Iterator>;
+  using Triple = typename BMergeIt::IteratorTriple;
+
+  vector<Triple> triples;
+  triples.emplace_back(v1.begin(), v1.end());
+  triples.emplace_back(v2.begin(), v2.end());
+
+  std::allocator<Iterator> alloc;
+  BMergeIt it(triples.begin(), triples.end(), alloc);
+
+  vector<T> expected{1, 2, 4, 5};
+  for (size_t i = 0; i < expected.size(); ++i) {
+    REQUIRE_FALSE(it.is_past_end());
+    CHECK(*it == expected[i]);
+    ++it;
+  }
+  REQUIRE(it.is_past_end());
+
+  for (size_t i = expected.size(); i > 0; --i) {
+    --it;
+    REQUIRE_FALSE(it.is_past_end());
+    CHECK(*it == expected[i - 1]);
+  }
+  REQUIRE(it.is_at_begin());
+}
+
+TEST_CASE_TEMPLATE("bidirectional assign from range", T, INT_TYPES_TO_TEST) {
+  vector<T> v1{1, 4, 7};
+  vector<T> v2{2, 5, 8};
+  vector<T> v3{3, 6, 9};
+
+  using Iterator = typename vector<T>::iterator;
+  using BMergeIt = BidirectionalMergeIterator<Iterator>;
+  using Triple = typename BMergeIt::IteratorTriple;
+
+  vector<Triple> triples;
+  triples.emplace_back(v1.begin(), v1.end());
+  triples.emplace_back(v2.begin(), v2.end());
+  triples.emplace_back(v3.begin(), v3.end());
+
+  BMergeIt it;
+  it.assign(triples.begin(), triples.end());
+
+  vector<T> expected{1, 2, 3, 4, 5, 6, 7, 8, 9};
+  for (size_t i = 0; i < expected.size(); ++i) {
+    REQUIRE_FALSE(it.is_past_end());
+    CHECK(*it == expected[i]);
+    ++it;
+  }
+  REQUIRE(it.is_past_end());
+
+  for (size_t i = expected.size(); i > 0; --i) {
+    --it;
+    REQUIRE_FALSE(it.is_past_end());
+    CHECK(*it == expected[i - 1]);
+  }
+  REQUIRE(it.is_at_begin());
+}
+
+TEST_CASE_TEMPLATE("bidirectional assign replaces existing content", T,
+                   INT_TYPES_TO_TEST) {
+  vector<T> v1{1, 4};
+  vector<T> v2{2, 5};
+  vector<T> v3{3, 6, 7, 8};
+
+  using Iterator = typename vector<T>::iterator;
+  using BMergeIt = BidirectionalMergeIterator<Iterator>;
+  using Triple = typename BMergeIt::IteratorTriple;
+
+  vector<Triple> triples1;
+  triples1.emplace_back(v1.begin(), v1.end());
+  triples1.emplace_back(v2.begin(), v2.end());
+
+  BMergeIt it(triples1.begin(), triples1.end());
+  ++it;
+  ++it;
+  REQUIRE(*it == T(4));
+
+  vector<Triple> triples2;
+  triples2.emplace_back(v3.begin(), v3.end());
+  it.assign(triples2.begin(), triples2.end());
+
+  vector<T> expected{3, 6, 7, 8};
+  for (size_t i = 0; i < expected.size(); ++i) {
+    REQUIRE_FALSE(it.is_past_end());
+    CHECK(*it == expected[i]);
+    ++it;
+  }
+  REQUIRE(it.is_past_end());
+
+  for (size_t i = expected.size(); i > 0; --i) {
+    --it;
+    REQUIRE_FALSE(it.is_past_end());
+    CHECK(*it == expected[i - 1]);
+  }
+  REQUIRE(it.is_at_begin());
 }
 
 TEST_SUITE_END();

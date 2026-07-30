@@ -5,6 +5,7 @@
 #include <memory>
 
 #include "bounded_array.hpp"
+#include "merge_iterator.hpp"
 #include "skip_array.hpp"
 
 namespace sorted_array_tower {
@@ -53,23 +54,17 @@ class BinaryTower {
   using layer_pointer = layer_allocator_traits::pointer;
   using layer_const_pointer = layer_allocator_traits::const_pointer;
 
- private:
+  using inlayer_iterator = typename layer_type::iterator;
+  using inlayer_const_iterator = typename layer_type::const_iterator;
+  using iterator =
+      BidirectionalMergeIterator<inlayer_iterator, key_compare, Allocator>;
+  using const_iterator = BidirectionalMergeIterator<inlayer_const_iterator,
+                                                    key_compare, Allocator>;
+
+ protected:
   key_compare compare_{};
   layer_allocator_type layer_allocator_{};
   std::vector<layer_pointer> layers_;
-
-  template <bool IsConst>
-  struct ElementLocation {
-    using iterator = std::conditional_t<IsConst, layer_type::const_iterator,
-                                        layer_type::iterator>;
-    size_type layer_index;
-    iterator it;
-  }
-
-  template <bool IsConst>
-  struct Iterator {
-    size_type layer_index;
-  };
 
  public:
   BinaryTower() : BinaryTower(key_compare()) {}

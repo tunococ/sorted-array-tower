@@ -1,9 +1,11 @@
 #pragma once
 
+#include <concepts>
 #include <iterator>
 #include <memory>
-#include <vector>
+#include <ranges>
 #include <utility>
+#include <vector>
 
 #include "binary_heap.hpp"
 
@@ -15,14 +17,13 @@ void merge(InputList&& list_1, InputList&& list_2, OutputList& output,
   auto i_1 = list_1.begin();
   auto i_2 = list_2.begin();
 
-  constexpr static auto push =
-      [](OutputList& o, auto&& i) {
-        if constexpr (std::is_rvalue_reference_v<InputList>) {
-          o.emplace_back(std::move(*i));
-        } else {
-          o.emplace_back(*i);
-        }
-      };
+  constexpr static auto push = [](OutputList& o, auto&& i) {
+    if constexpr (std::is_rvalue_reference_v<InputList>) {
+      o.emplace_back(std::move(*i));
+    } else {
+      o.emplace_back(*i);
+    }
+  };
 
   while (true) {
     if (i_1 == list_1.end()) {
@@ -74,9 +75,6 @@ class MergeIterator {
 
   using location_type = std::pair<size_type, iterator>;
 
- protected:
-  [[no_unique_address]] key_compare compare_;
-
   struct IteratorTriple {
     iterator begin;
     iterator end;
@@ -93,11 +91,22 @@ class MergeIterator {
     constexpr IteratorTriple() = default;
     constexpr IteratorTriple(iterator begin, iterator end, iterator current)
         : begin(begin), end(end), current(current) {}
+    constexpr IteratorTriple(iterator begin, iterator end)
+        : begin(begin), end(end), current(begin) {}
+    constexpr IteratorTriple(iterator begin)
+        : begin(begin), end(begin), current(begin) {}
+    constexpr IteratorTriple(std::tuple<iterator, iterator, iterator> triple)
+        : begin(std::get<0>(triple)),
+          end(std::get<1>(triple)),
+          current(std::get<2>(triple)) {}
     constexpr IteratorTriple(const IteratorTriple&) = default;
     constexpr IteratorTriple(IteratorTriple&&) = default;
     constexpr IteratorTriple& operator=(const IteratorTriple&) = default;
     constexpr IteratorTriple& operator=(IteratorTriple&&) = default;
   };
+
+ protected:
+  [[no_unique_address]] key_compare compare_;
 
   using IteratorTripleAllocator =
       std::allocator_traits<Allocator>::template rebind_alloc<IteratorTriple>;
@@ -153,6 +162,25 @@ class MergeIterator {
   constexpr explicit MergeIterator(Allocator const& alloc)
       : MergeIterator(Compare(), alloc) {}
 
+  template <std::input_iterator InputIterator>
+    requires std::convertible_to<std::iter_reference_t<InputIterator>,
+                                 IteratorTriple>
+  constexpr MergeIterator(InputIterator first, InputIterator last,
+                          Compare const& comp = Compare(),
+                          Allocator const& alloc = Allocator())
+      : MergeIterator(comp, alloc) {
+    assign(first, last);
+  }
+
+  template <std::input_iterator InputIterator>
+    requires std::convertible_to<std::iter_reference_t<InputIterator>,
+                                 IteratorTriple>
+  constexpr explicit MergeIterator(InputIterator first, InputIterator last,
+                                   Allocator const& alloc)
+      : MergeIterator(Compare(), alloc) {
+    assign(first, last);
+  }
+
   constexpr MergeIterator(MergeIterator const& other)
       : compare_(other.compare_),
         triples_(other.triples_),
@@ -192,8 +220,7 @@ class MergeIterator {
     forward_heap_.reserve(capacity);
   }
 
-  constexpr size_type add_list(iterator begin, iterator end,
-                               iterator current) {
+  constexpr size_type add_list(iterator begin, iterator end, iterator current) {
     size_type index = triples_.size();
     triples_.emplace_back(begin, end, current);
     forward_heap_.emplace(index);
@@ -202,6 +229,19 @@ class MergeIterator {
 
   constexpr size_type add_list(iterator begin, iterator end) {
     return add_list(begin, end, begin);
+  }
+
+  template <std::input_iterator InputIterator>
+    requires std::convertible_to<std::iter_reference_t<InputIterator>,
+                                 IteratorTriple>
+  constexpr void assign(InputIterator first, InputIterator last) {
+    triples_.clear();
+    for (; first != last; ++first) {
+      triples_.emplace_back(*first);
+    }
+    forward_heap_.reserve(triples_.size());
+    auto indices = std::views::iota(size_type{0}, triples_.size());
+    forward_heap_.assign(indices.begin(), indices.end());
   }
 
   constexpr bool is_past_end() const {
@@ -213,7 +253,7 @@ class MergeIterator {
   }
 
   constexpr MergeIterator& move_to_begin() {
-    for (auto& triple: triples_) {
+    for (auto& triple : triples_) {
       triple.current = triple.begin;
     }
     forward_heap_.build_heap();
@@ -227,7 +267,7 @@ class MergeIterator {
   }
 
   constexpr MergeIterator& move_to_end() {
-    for (auto& triple: triples_) {
+    for (auto& triple : triples_) {
       triple.current = triple.end;
     }
     forward_heap_.build_heap();
@@ -271,7 +311,6 @@ class MergeIterator {
     }
     return location() == other.location();
   }
-
 };
 
 /**
@@ -284,7 +323,8 @@ template <typename Iterator,
           typename Compare =
               std::less<typename std::iterator_traits<Iterator>::value_type>,
           typename Allocator = std::allocator<Iterator>>
-class BidirectionalMergeIterator : public MergeIterator<Iterator, Compare, Allocator> {
+class BidirectionalMergeIterator
+    : public MergeIterator<Iterator, Compare, Allocator> {
  public:
   using Base = MergeIterator<Iterator, Compare, Allocator>;
   using iterator = Iterator;
@@ -302,13 +342,12 @@ class BidirectionalMergeIterator : public MergeIterator<Iterator, Compare, Alloc
   using value_compare = key_compare;
 
   using location_type = std::pair<size_type, iterator>;
+  using IteratorTriple = typename Base::IteratorTriple;
 
  protected:
-  using Base::triples_;
   using Base::compare_;
   using Base::forward_heap_;
-
-  using IteratorTriple = typename Base::IteratorTriple;
+  using Base::triples_;
 
   using ThisPointer =
       std::pointer_traits<pointer>::template rebind<BidirectionalMergeIterator>;
@@ -354,8 +393,27 @@ class BidirectionalMergeIterator : public MergeIterator<Iterator, Compare, Alloc
   constexpr explicit BidirectionalMergeIterator(Allocator const& alloc)
       : BidirectionalMergeIterator(Compare(), alloc) {}
 
-  constexpr BidirectionalMergeIterator(
-      BidirectionalMergeIterator const& other)
+  template <std::input_iterator InputIterator>
+    requires std::convertible_to<std::iter_reference_t<InputIterator>,
+                                 typename Base::IteratorTriple>
+  constexpr BidirectionalMergeIterator(InputIterator first, InputIterator last,
+                                       Compare const& comp = Compare(),
+                                       Allocator const& alloc = Allocator())
+      : BidirectionalMergeIterator(comp, alloc) {
+    assign(first, last);
+  }
+
+  template <std::input_iterator InputIterator>
+    requires std::convertible_to<std::iter_reference_t<InputIterator>,
+                                 typename Base::IteratorTriple>
+  constexpr explicit BidirectionalMergeIterator(InputIterator first,
+                                                InputIterator last,
+                                                Allocator const& alloc)
+      : BidirectionalMergeIterator(Compare(), alloc) {
+    assign(first, last);
+  }
+
+  constexpr BidirectionalMergeIterator(BidirectionalMergeIterator const& other)
       : Base(other),
         backward_heap_(BackwardCompareIndices{this},
                        other.backward_heap_.get_allocator()) {
@@ -365,8 +423,7 @@ class BidirectionalMergeIterator : public MergeIterator<Iterator, Compare, Alloc
     }
   }
 
-  constexpr BidirectionalMergeIterator(
-      BidirectionalMergeIterator&& other)
+  constexpr BidirectionalMergeIterator(BidirectionalMergeIterator&& other)
       : Base(std::move(other)),
         backward_heap_(std::move(other.backward_heap_)) {
     other.backward_heap_.clear();
@@ -397,8 +454,7 @@ class BidirectionalMergeIterator : public MergeIterator<Iterator, Compare, Alloc
 
   using Base::add_list;
 
-  constexpr size_type add_list(iterator begin, iterator end,
-                               iterator current) {
+  constexpr size_type add_list(iterator begin, iterator end, iterator current) {
     size_type index = Base::add_list(begin, end, current);
     backward_heap_.emplace(index);
     return index;
@@ -406,6 +462,16 @@ class BidirectionalMergeIterator : public MergeIterator<Iterator, Compare, Alloc
 
   constexpr size_type add_list(iterator begin, iterator end) {
     return add_list(begin, end, begin);
+  }
+
+  template <std::input_iterator InputIterator>
+    requires std::convertible_to<std::iter_reference_t<InputIterator>,
+                                 typename Base::IteratorTriple>
+  constexpr void assign(InputIterator first, InputIterator last) {
+    Base::assign(first, last);
+    backward_heap_.reserve(triples_.size());
+    auto indices = std::views::iota(size_type{0}, triples_.size());
+    backward_heap_.assign(indices.begin(), indices.end());
   }
 
   constexpr bool is_at_begin() const {
