@@ -510,6 +510,10 @@ class BoundedVector {
     reallocate(new_capacity);
   }
 
+  constexpr void reserve(size_type new_capacity) {
+    return set_capacity(new_capacity);
+  }
+
   /// @brief Accesses the element at the given logical index.
   constexpr reference operator[](size_type index) {
     return data_[index];
