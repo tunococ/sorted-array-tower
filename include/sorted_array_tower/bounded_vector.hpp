@@ -107,6 +107,10 @@ class BoundedVector {
       return (*vector_)[index_ + n];
     }
 
+    constexpr size_type index() const noexcept {
+      return index_;
+    }
+
     constexpr Iterator& operator++() {
       ++index_;
       return *this;
@@ -601,6 +605,154 @@ class BoundedVector {
     std::allocator_traits<allocator_type>::destroy(allocator_,
                                                    &data_[size_ - 1]);
     --size_;
+  }
+
+  /// @brief Constructs an element in place at `pos`, shifting elements to the
+  ///   right to make room.
+  ///
+  /// @tparam Args The types of the arguments forwarded to the element's
+  ///   constructor.
+  /// @param pos An iterator pointing to the insertion position.
+  /// @param args The arguments used to construct the new element.
+  /// @return An iterator to the newly constructed element.
+  /// @throw std::length_error If the vector is already full.
+  template <typename... Args>
+  iterator emplace(const_iterator pos, Args&&... args) {
+    if (size_ == capacity_) {
+      throw std::length_error("BoundedVector is full");
+    }
+    size_type index = pos.index();
+    if (index > size_) {
+      throw std::out_of_range("BoundedVector iterator out of range");
+    }
+    if (index < size_) {
+      raw_construct(size_, std::move(data_[size_ - 1]));
+      if (index < size_ - 1) {
+        std::move_backward(data_.get() + index, data_.get() + size_ - 1,
+                           data_.get() + size_);
+      }
+      std::allocator_traits<allocator_type>::destroy(allocator_,
+                                                     &data_[index]);
+    }
+    raw_construct(index, std::forward<Args>(args)...);
+    ++size_;
+    return iterator(this, index);
+  }
+
+  iterator insert(const_iterator pos, value_type const& value) {
+    return emplace(pos, value);
+  }
+
+  iterator insert(const_iterator pos, value_type&& value) {
+    return emplace(pos, std::move(value));
+  }
+
+  constexpr iterator insert(const_iterator pos, size_type count,
+                            value_type const& value) {
+    if (count == 0) {
+      return iterator(this, pos.index());
+    }
+    if (size_ + count > capacity_) {
+      throw std::length_error("BoundedVector insert fill exceeds capacity");
+    }
+    size_type index = pos.index();
+    if (index > size_) {
+      throw std::out_of_range("BoundedVector iterator out of range");
+    }
+    size_type tail_size = size_ - index;
+    size_type uninit_count = count < tail_size ? count : tail_size;
+    size_type init_count = tail_size - uninit_count;
+    if (uninit_count > 0) {
+      std::uninitialized_move_backward(data_.get() + size_ - uninit_count,
+                                       data_.get() + size_,
+                                       data_.get() + size_ + count);
+    }
+    if (init_count > 0) {
+      std::move_backward(data_.get() + index,
+                         data_.get() + size_ - uninit_count,
+                         data_.get() + size_);
+    }
+    std::destroy_n(data_.get() + index, tail_size);
+    size_type constructed = 0;
+    try {
+      for (; constructed < count; ++constructed) {
+        raw_construct(index + constructed, value);
+      }
+    } catch (...) {
+      for (size_type i = 0; i < constructed; ++i) {
+        std::allocator_traits<allocator_type>::destroy(allocator_,
+                                                       &data_[index + i]);
+      }
+      if (init_count > 0) {
+        std::uninitialized_move_backward(
+            data_.get() + size_, data_.get() + size_ + init_count,
+            data_.get() + size_ - uninit_count);
+      }
+      if (uninit_count > 0) {
+        std::destroy_n(data_.get() + size_, uninit_count);
+      }
+      throw;
+    }
+    size_ += count;
+    return iterator(this, index);
+  }
+
+  template <typename InputIterator>
+    requires(!std::is_convertible_v<InputIterator, size_type>)
+  constexpr iterator insert(const_iterator pos, InputIterator first,
+                            InputIterator last) {
+    size_type count = static_cast<size_type>(std::distance(first, last));
+    if (count == 0) {
+      return iterator(this, pos.index());
+    }
+    if (size_ + count > capacity_) {
+      throw std::length_error("BoundedVector insert range exceeds capacity");
+    }
+    size_type index = pos.index();
+    if (index > size_) {
+      throw std::out_of_range("BoundedVector iterator out of range");
+    }
+    size_type tail_size = size_ - index;
+    size_type uninit_count = count < tail_size ? count : tail_size;
+    size_type init_count = tail_size - uninit_count;
+    if (uninit_count > 0) {
+      std::uninitialized_move_backward(data_.get() + size_ - uninit_count,
+                                       data_.get() + size_,
+                                       data_.get() + size_ + count);
+    }
+    if (init_count > 0) {
+      std::move_backward(data_.get() + index,
+                         data_.get() + size_ - uninit_count,
+                         data_.get() + size_);
+    }
+    std::destroy_n(data_.get() + index, tail_size);
+    size_type constructed = 0;
+    try {
+      for (; constructed < count; ++constructed, ++first) {
+        raw_construct(index + constructed, *first);
+      }
+    } catch (...) {
+      for (size_type i = 0; i < constructed; ++i) {
+        std::allocator_traits<allocator_type>::destroy(allocator_,
+                                                       &data_[index + i]);
+      }
+      if (init_count > 0) {
+        std::uninitialized_move_backward(
+            data_.get() + size_, data_.get() + size_ + init_count,
+            data_.get() + size_ - uninit_count);
+      }
+      if (uninit_count > 0) {
+        std::destroy_n(data_.get() + size_, uninit_count);
+      }
+      throw;
+    }
+    size_ += count;
+    return iterator(this, index);
+  }
+
+  constexpr iterator insert(const_iterator pos,
+                            std::initializer_list<value_type> init) {
+    return insert(pos, init.begin(), init.end());
   }
 
   /// @brief Replaces the contents with `count` copies of `value`.
