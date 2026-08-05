@@ -226,81 +226,6 @@ TEST_CASE_TEMPLATE("emplace_insert", T, INT_TYPES_TO_TEST) {
   }
 }
 
-TEST_CASE("lifetime: emplace and insert do not leak or double-free") {
-  SUBCASE("emplace destroys all elements on scope exit") {
-    {
-      BoundedVector<Tracked> s(8);
-      for (int i = 0; i < 3; ++i) {
-        s.push_back(Tracked(i));
-      }
-      s.emplace(s.begin() + 1, 99);
-      REQUIRE(Tracked::alive == 4);
-    }
-    REQUIRE(Tracked::alive == 0);
-  }
-
-  SUBCASE("emplace in middle destroys all elements on scope exit") {
-    {
-      BoundedVector<Tracked> s(8);
-      for (int i = 0; i < 4; ++i) {
-        s.push_back(Tracked(i));
-      }
-      s.emplace(s.begin() + 2, 99);
-      REQUIRE(Tracked::alive == 5);
-    }
-    REQUIRE(Tracked::alive == 0);
-  }
-
-  SUBCASE("insert fill destroys all elements on scope exit") {
-    {
-      BoundedVector<Tracked> s(8);
-      for (int i = 0; i < 3; ++i) {
-        s.push_back(Tracked(i));
-      }
-      s.insert(s.begin() + 1, 2, Tracked(99));
-      REQUIRE(Tracked::alive == 5);
-    }
-    REQUIRE(Tracked::alive == 0);
-  }
-
-  SUBCASE("insert range destroys all elements on scope exit") {
-    {
-      BoundedVector<Tracked> s(8);
-      for (int i = 0; i < 3; ++i) {
-        s.push_back(Tracked(i));
-      }
-      std::vector<Tracked> v = {Tracked(99), Tracked(98)};
-      s.insert(s.begin() + 1, v.begin(), v.end());
-      REQUIRE(Tracked::alive == 5);
-    }
-    REQUIRE(Tracked::alive == 0);
-  }
-
-  SUBCASE("emplace with large tail moves last element without double-free") {
-    {
-      BoundedVector<Tracked> s(8);
-      for (int i = 0; i < 5; ++i) {
-        s.push_back(Tracked(i));
-      }
-      s.emplace(s.begin(), 99);
-      REQUIRE(Tracked::alive == 6);
-    }
-    REQUIRE(Tracked::alive == 0);
-  }
-
-  SUBCASE("insert fill with large tail moves last elements without double-free") {
-    {
-      BoundedVector<Tracked> s(8);
-      for (int i = 0; i < 5; ++i) {
-        s.push_back(Tracked(i));
-      }
-      s.insert(s.begin(), 2, Tracked(99));
-      REQUIRE(Tracked::alive == 7);
-    }
-    REQUIRE(Tracked::alive == 0);
-  }
-}
-
 TEST_CASE_TEMPLATE("set_capacity", T, INT_TYPES_TO_TEST) {
   BoundedVector<T> s(8);
   for (T i = 0; i < 5; ++i) {
@@ -751,6 +676,81 @@ TEST_CASE("lifetime: no leaks or double-free with non-trivial type") {
       REQUIRE(Tracked::alive == 2);
       s.resize(6, Tracked(9));
       REQUIRE(Tracked::alive == 6);
+    }
+    REQUIRE(Tracked::alive == 0);
+  }
+}
+
+TEST_CASE("lifetime: emplace and insert do not leak or double-free") {
+  SUBCASE("emplace destroys all elements on scope exit") {
+    {
+      BoundedVector<Tracked> s(8);
+      for (int i = 0; i < 3; ++i) {
+        s.push_back(Tracked(i));
+      }
+      s.emplace(s.begin() + 1, 99);
+      REQUIRE(Tracked::alive == 4);
+    }
+    REQUIRE(Tracked::alive == 0);
+  }
+
+  SUBCASE("emplace in middle destroys all elements on scope exit") {
+    {
+      BoundedVector<Tracked> s(8);
+      for (int i = 0; i < 4; ++i) {
+        s.push_back(Tracked(i));
+      }
+      s.emplace(s.begin() + 2, 99);
+      REQUIRE(Tracked::alive == 5);
+    }
+    REQUIRE(Tracked::alive == 0);
+  }
+
+  SUBCASE("insert fill destroys all elements on scope exit") {
+    {
+      BoundedVector<Tracked> s(8);
+      for (int i = 0; i < 3; ++i) {
+        s.push_back(Tracked(i));
+      }
+      s.insert(s.begin() + 1, 2, Tracked(99));
+      REQUIRE(Tracked::alive == 5);
+    }
+    REQUIRE(Tracked::alive == 0);
+  }
+
+  SUBCASE("insert range destroys all elements on scope exit") {
+    {
+      BoundedVector<Tracked> s(8);
+      for (int i = 0; i < 3; ++i) {
+        s.push_back(Tracked(i));
+      }
+      std::vector<Tracked> v = {Tracked(99), Tracked(98)};
+      s.insert(s.begin() + 1, v.begin(), v.end());
+      REQUIRE(Tracked::alive == 7);
+    }
+    REQUIRE(Tracked::alive == 0);
+  }
+
+  SUBCASE("emplace with large tail moves last element without double-free") {
+    {
+      BoundedVector<Tracked> s(8);
+      for (int i = 0; i < 5; ++i) {
+        s.push_back(Tracked(i));
+      }
+      s.emplace(s.begin(), 99);
+      REQUIRE(Tracked::alive == 6);
+    }
+    REQUIRE(Tracked::alive == 0);
+  }
+
+  SUBCASE("insert fill with large tail moves last elements without double-free") {
+    {
+      BoundedVector<Tracked> s(8);
+      for (int i = 0; i < 5; ++i) {
+        s.push_back(Tracked(i));
+      }
+      s.insert(s.begin(), 2, Tracked(99));
+      REQUIRE(Tracked::alive == 7);
     }
     REQUIRE(Tracked::alive == 0);
   }

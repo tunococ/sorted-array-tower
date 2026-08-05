@@ -22,6 +22,54 @@ using namespace std;
 
 #define INT_TYPES_TO_TEST int, size_t
 
+// A type that tracks the number of live instances to detect leaks and
+// double-destruction. `alive` is incremented by every constructor and
+// decremented by the destructor; a correct container leaves it at zero and
+// never drives it negative. Each object also carries a sentinel so that a
+// second destruction of the same object is caught even while other instances
+// remain alive.
+struct Tracked {
+  static inline int alive = 0;
+  static constexpr int kDestroyed = -424242;
+
+  int value;
+
+  Tracked() : value(0) {
+    ++alive;
+  }
+  Tracked(int v) : value(v) {
+    ++alive;
+  }
+  Tracked(Tracked const& other) : value(other.value) {
+    ++alive;
+  }
+  Tracked(Tracked&& other) noexcept : value(other.value) {
+    other.value = -1;
+    ++alive;
+  }
+  Tracked& operator=(Tracked const& other) {
+    value = other.value;
+    return *this;
+  }
+  Tracked& operator=(Tracked&& other) noexcept {
+    value = other.value;
+    other.value = -1;
+    return *this;
+  }
+  ~Tracked() {
+    REQUIRE(value != kDestroyed);
+    REQUIRE(alive > 0);
+    value = kDestroyed;
+    --alive;
+  }
+
+  static void reset() {
+    alive = 0;
+  }
+
+  auto operator<=>(Tracked const& other) const = default;
+};
+
 TEST_SUITE_BEGIN("bounded_array");
 
 TEST_CASE_TEMPLATE("constructors", T, INT_TYPES_TO_TEST) {
@@ -180,6 +228,225 @@ TEST_CASE_TEMPLATE("emplace", T, INT_TYPES_TO_TEST) {
   s.emplace_front(T(2));
   REQUIRE(s[0] == T(2));
   REQUIRE(s[1] == T(1));
+}
+
+TEST_CASE_TEMPLATE("emplace_insert", T, INT_TYPES_TO_TEST) {
+  SUBCASE("emplace at begin") {
+    BoundedArray<T> s(5, {T(1), T(2), T(3)});
+    auto it = s.emplace(s.begin(), T(9));
+    REQUIRE(s.size() == 4);
+    REQUIRE(s[0] == T(9));
+    REQUIRE(s[1] == T(1));
+    REQUIRE(s[2] == T(2));
+    REQUIRE(s[3] == T(3));
+    REQUIRE(it == s.begin());
+  }
+
+  SUBCASE("emplace in middle") {
+    BoundedArray<T> s(5, {T(1), T(2), T(3)});
+    auto it = s.emplace(s.begin() + 1, T(9));
+    REQUIRE(s.size() == 4);
+    REQUIRE(s[0] == T(1));
+    REQUIRE(s[1] == T(9));
+    REQUIRE(s[2] == T(2));
+    REQUIRE(s[3] == T(3));
+    REQUIRE(it == s.begin() + 1);
+  }
+
+  SUBCASE("emplace at end") {
+    BoundedArray<T> s(5, {T(1), T(2), T(3)});
+    auto it = s.emplace(s.end(), T(9));
+    REQUIRE(s.size() == 4);
+    REQUIRE(s[0] == T(1));
+    REQUIRE(s[1] == T(2));
+    REQUIRE(s[2] == T(3));
+    REQUIRE(s[3] == T(9));
+    REQUIRE(it == s.end() - 1);
+  }
+
+  SUBCASE("emplace after wrap-around") {
+    BoundedArray<T> s(5);
+    s.push_back(T(1));
+    s.push_back(T(2));
+    s.push_back(T(3));
+    s.pop_front();
+    s.push_back(T(4));
+    REQUIRE(s.size() == 3);
+    REQUIRE(s[0] == T(2));
+    REQUIRE(s[1] == T(3));
+    REQUIRE(s[2] == T(4));
+    auto it = s.emplace(s.begin() + 1, T(9));
+    REQUIRE(s.size() == 4);
+    REQUIRE(s[0] == T(2));
+    REQUIRE(s[1] == T(9));
+    REQUIRE(s[2] == T(3));
+    REQUIRE(s[3] == T(4));
+    REQUIRE(it == s.begin() + 1);
+  }
+
+  SUBCASE("insert lvalue") {
+    BoundedArray<T> s(5, {T(1), T(2), T(3)});
+    auto it = s.insert(s.begin() + 1, T(9));
+    REQUIRE(s.size() == 4);
+    REQUIRE(s[1] == T(9));
+    REQUIRE(it == s.begin() + 1);
+  }
+
+  SUBCASE("insert rvalue") {
+    BoundedArray<T> s(5, {T(1), T(2), T(3)});
+    T val = T(9);
+    auto it = s.insert(s.begin() + 1, std::move(val));
+    REQUIRE(s.size() == 4);
+    REQUIRE(s[1] == T(9));
+    REQUIRE(it == s.begin() + 1);
+  }
+
+  SUBCASE("insert fill") {
+    BoundedArray<T> s(6, {T(1), T(2), T(3)});
+    auto it = s.insert(s.begin() + 1, 2, T(9));
+    REQUIRE(s.size() == 5);
+    REQUIRE(s[0] == T(1));
+    REQUIRE(s[1] == T(9));
+    REQUIRE(s[2] == T(9));
+    REQUIRE(s[3] == T(2));
+    REQUIRE(s[4] == T(3));
+    REQUIRE(it == s.begin() + 1);
+  }
+
+  SUBCASE("insert range") {
+    BoundedArray<T> s(6, {T(1), T(2), T(3)});
+    vector<T> v = {T(9), T(8)};
+    auto it = s.insert(s.begin() + 1, v.begin(), v.end());
+    REQUIRE(s.size() == 5);
+    REQUIRE(s[0] == T(1));
+    REQUIRE(s[1] == T(9));
+    REQUIRE(s[2] == T(8));
+    REQUIRE(s[3] == T(2));
+    REQUIRE(s[4] == T(3));
+    REQUIRE(it == s.begin() + 1);
+  }
+
+  SUBCASE("insert initializer_list") {
+    BoundedArray<T> s(6, {T(1), T(2), T(3)});
+    auto it = s.insert(s.begin() + 1, {T(9), T(8)});
+    REQUIRE(s.size() == 5);
+    REQUIRE(s[0] == T(1));
+    REQUIRE(s[1] == T(9));
+    REQUIRE(s[2] == T(8));
+    REQUIRE(s[3] == T(2));
+    REQUIRE(s[4] == T(3));
+    REQUIRE(it == s.begin() + 1);
+  }
+
+  SUBCASE("insert at end") {
+    BoundedArray<T> s(5, {T(1), T(2), T(3)});
+    auto it = s.insert(s.end(), T(9));
+    REQUIRE(s.size() == 4);
+    REQUIRE(s[3] == T(9));
+    REQUIRE(it == s.end() - 1);
+  }
+
+  SUBCASE("full then emplace throws") {
+    BoundedArray<T> s(3, {T(1), T(2), T(3)});
+    CHECK_THROWS_AS(s.emplace(s.begin(), T(9)), length_error);
+  }
+
+  SUBCASE("full then insert throws") {
+    BoundedArray<T> s(3, {T(1), T(2), T(3)});
+    CHECK_THROWS_AS(s.insert(s.begin(), T(9)), length_error);
+    CHECK_THROWS_AS(s.insert(s.begin(), 1, T(9)), length_error);
+    vector<T> v = {T(9)};
+    CHECK_THROWS_AS(s.insert(s.begin(), v.begin(), v.end()), length_error);
+    CHECK_THROWS_AS(s.insert(s.begin(), {T(9)}), length_error);
+  }
+
+  SUBCASE("iterator out of range throws") {
+    BoundedArray<T> s(5, {T(1), T(2)});
+    CHECK_THROWS_AS(s.emplace(s.begin() + 3, T(9)), out_of_range);
+    CHECK_THROWS_AS(s.insert(s.begin() + 3, T(9)), out_of_range);
+    CHECK_THROWS_AS(s.insert(s.begin() + 3, 1, T(9)), out_of_range);
+  }
+}
+
+TEST_CASE("lifetime: emplace and insert do not leak or double-free") {
+  SUBCASE("emplace destroys all elements on scope exit") {
+    {
+      BoundedArray<Tracked> s(8);
+      for (int i = 0; i < 3; ++i) {
+        s.push_back(Tracked(i));
+      }
+      s.emplace(s.begin() + 1, 99);
+      REQUIRE(Tracked::alive == 4);
+    }
+    REQUIRE(Tracked::alive == 0);
+  }
+
+  SUBCASE("emplace in middle destroys all elements on scope exit") {
+    {
+      BoundedArray<Tracked> s(8);
+      for (int i = 0; i < 4; ++i) {
+        s.push_back(Tracked(i));
+      }
+      s.emplace(s.begin() + 2, 99);
+      REQUIRE(Tracked::alive == 5);
+    }
+    REQUIRE(Tracked::alive == 0);
+  }
+
+  SUBCASE("insert fill destroys all elements on scope exit") {
+    {
+      BoundedArray<Tracked> s(8);
+      for (int i = 0; i < 3; ++i) {
+        s.push_back(Tracked(i));
+      }
+      s.insert(s.begin() + 1, 2, Tracked(99));
+      REQUIRE(Tracked::alive == 5);
+    }
+    REQUIRE(Tracked::alive == 0);
+  }
+
+  SUBCASE("insert range destroys all elements on scope exit") {
+    {
+      BoundedArray<Tracked> s(8);
+      for (int i = 0; i < 3; ++i) {
+        s.push_back(Tracked(i));
+      }
+      std::vector<Tracked> v = {Tracked(99), Tracked(98)};
+      s.insert(s.begin() + 1, v.begin(), v.end());
+      REQUIRE(Tracked::alive == 7);
+    }
+    REQUIRE(Tracked::alive == 0);
+  }
+
+  SUBCASE("emplace with wrap-around moves elements without double-free") {
+    {
+      BoundedArray<Tracked> s(5);
+      s.push_back(Tracked(1));
+      s.push_back(Tracked(2));
+      s.push_back(Tracked(3));
+      s.pop_front();
+      s.push_back(Tracked(4));
+      REQUIRE(Tracked::alive == 3);
+      s.emplace(s.begin() + 1, 99);
+      REQUIRE(Tracked::alive == 4);
+    }
+    REQUIRE(Tracked::alive == 0);
+  }
+
+  SUBCASE("insert fill with wrap-around moves elements without double-free") {
+    {
+      BoundedArray<Tracked> s(5);
+      s.push_back(Tracked(1));
+      s.push_back(Tracked(2));
+      s.push_back(Tracked(3));
+      s.pop_front();
+      s.push_back(Tracked(4));
+      REQUIRE(Tracked::alive == 3);
+      s.insert(s.begin() + 1, 2, Tracked(99));
+      REQUIRE(Tracked::alive == 5);
+    }
+    REQUIRE(Tracked::alive == 0);
+  }
 }
 
 TEST_CASE_TEMPLATE("set_capacity", T, INT_TYPES_TO_TEST) {
@@ -490,53 +757,6 @@ TEST_CASE_TEMPLATE("assign", T, INT_TYPES_TO_TEST) {
 // double-destruction. `alive` is incremented by every constructor and
 // decremented by the destructor; a correct container leaves it at zero and
 // never drives it negative. Each object also carries a sentinel so that a
-// second destruction of the same object is caught even while other instances
-// remain alive.
-struct Tracked {
-  static inline int alive = 0;
-  static constexpr int kDestroyed = -424242;
-
-  int value;
-
-  Tracked() : value(0) {
-    ++alive;
-  }
-  Tracked(int v) : value(v) {
-    ++alive;
-  }
-  Tracked(Tracked const& other) : value(other.value) {
-    ++alive;
-  }
-  Tracked(Tracked&& other) noexcept : value(other.value) {
-    other.value = -1;
-    ++alive;
-  }
-  Tracked& operator=(Tracked const& other) {
-    value = other.value;
-    return *this;
-  }
-  Tracked& operator=(Tracked&& other) noexcept {
-    value = other.value;
-    other.value = -1;
-    return *this;
-  }
-  ~Tracked() {
-    // A destroyed object is poisoned with a sentinel; seeing it again means
-    // this exact object was destroyed twice, which the global `alive` count
-    // alone would miss whenever other instances are still alive.
-    REQUIRE(value != kDestroyed);
-    REQUIRE(alive > 0);
-    value = kDestroyed;
-    --alive;
-  }
-
-  static void reset() {
-    alive = 0;
-  }
-
-  auto operator<=>(Tracked const& other) const = default;
-};
-
 TEST_CASE("lifetime: no leaks or double-free with non-trivial type") {
   Tracked::reset();
 

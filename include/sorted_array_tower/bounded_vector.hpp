@@ -628,8 +628,8 @@ class BoundedVector {
     if (index < size_) {
       raw_construct(size_, std::move(data_[size_ - 1]));
       if (index < size_ - 1) {
-        std::move_backward(data_.get() + index, data_.get() + size_ - 1,
-                           data_.get() + size_);
+        std::move_backward(data_ + index, data_ + size_ - 1,
+                           data_ + size_);
       }
       std::allocator_traits<allocator_type>::destroy(allocator_,
                                                      &data_[index]);
@@ -663,33 +663,28 @@ class BoundedVector {
     size_type uninit_count = count < tail_size ? count : tail_size;
     size_type init_count = tail_size - uninit_count;
     if (uninit_count > 0) {
-      std::uninitialized_move_backward(data_.get() + size_ - uninit_count,
-                                       data_.get() + size_,
-                                       data_.get() + size_ + count);
+      std::uninitialized_move(data_ + size_ - uninit_count,
+                              data_ + size_,
+                              data_ + size_ + count - uninit_count);
     }
     if (init_count > 0) {
-      std::move_backward(data_.get() + index,
-                         data_.get() + size_ - uninit_count,
-                         data_.get() + size_);
+      std::move_backward(data_ + index,
+                         data_ + size_ - uninit_count,
+                         data_ + size_ + count - uninit_count);
     }
-    std::destroy_n(data_.get() + index, tail_size);
+    for (size_type i = 0; i < count; ++i) {
+      std::allocator_traits<allocator_type>::destroy(allocator_,
+                                                     &data_[index + i]);
+    }
     size_type constructed = 0;
     try {
       for (; constructed < count; ++constructed) {
         raw_construct(index + constructed, value);
       }
     } catch (...) {
-      for (size_type i = 0; i < constructed; ++i) {
-        std::allocator_traits<allocator_type>::destroy(allocator_,
-                                                       &data_[index + i]);
-      }
-      if (init_count > 0) {
-        std::uninitialized_move_backward(
-            data_.get() + size_, data_.get() + size_ + init_count,
-            data_.get() + size_ - uninit_count);
-      }
-      if (uninit_count > 0) {
-        std::destroy_n(data_.get() + size_, uninit_count);
+      std::move(data_ + index + count, data_ + size_ + count, data_ + index);
+      for (size_type i = size_; i < size_ + count; ++i) {
+        std::allocator_traits<allocator_type>::destroy(allocator_, &data_[i]);
       }
       throw;
     }
@@ -716,33 +711,28 @@ class BoundedVector {
     size_type uninit_count = count < tail_size ? count : tail_size;
     size_type init_count = tail_size - uninit_count;
     if (uninit_count > 0) {
-      std::uninitialized_move_backward(data_.get() + size_ - uninit_count,
-                                       data_.get() + size_,
-                                       data_.get() + size_ + count);
+      std::uninitialized_move(data_ + size_ - uninit_count,
+                              data_ + size_,
+                              data_ + size_ + count - uninit_count);
     }
     if (init_count > 0) {
-      std::move_backward(data_.get() + index,
-                         data_.get() + size_ - uninit_count,
-                         data_.get() + size_);
+      std::move_backward(data_ + index,
+                         data_ + size_ - uninit_count,
+                         data_ + size_ + count - uninit_count);
     }
-    std::destroy_n(data_.get() + index, tail_size);
+    for (size_type i = 0; i < count; ++i) {
+      std::allocator_traits<allocator_type>::destroy(allocator_,
+                                                     &data_[index + i]);
+    }
     size_type constructed = 0;
     try {
       for (; constructed < count; ++constructed, ++first) {
         raw_construct(index + constructed, *first);
       }
     } catch (...) {
-      for (size_type i = 0; i < constructed; ++i) {
-        std::allocator_traits<allocator_type>::destroy(allocator_,
-                                                       &data_[index + i]);
-      }
-      if (init_count > 0) {
-        std::uninitialized_move_backward(
-            data_.get() + size_, data_.get() + size_ + init_count,
-            data_.get() + size_ - uninit_count);
-      }
-      if (uninit_count > 0) {
-        std::destroy_n(data_.get() + size_, uninit_count);
+      std::move(data_ + index + count, data_ + size_ + count, data_ + index);
+      for (size_type i = size_; i < size_ + count; ++i) {
+        std::allocator_traits<allocator_type>::destroy(allocator_, &data_[i]);
       }
       throw;
     }

@@ -111,6 +111,10 @@ class BoundedArray {
       return (*array_)[index_ + n];
     }
 
+    constexpr size_type index() const noexcept {
+      return index_;
+    }
+
     constexpr Iterator& operator++() {
       ++index_;
       return *this;
@@ -203,6 +207,52 @@ class BoundedArray {
   constexpr void destroy_and_deallocate_partial() {
     destroy_range(front_index_, size_);
     deallocate_storage(data_, capacity_);
+  }
+
+  /// @brief Applies `std::uninitialized_move` to a logical range of elements
+  ///   in the circular buffer, writing the results to `result_physical`.
+  ///
+  /// The source range is `[logical_first, logical_first + count)`. The
+  /// destination starts at `result_physical` and advances modulo `capacity_`.
+  constexpr void uninitialized_move_range(size_type logical_first,
+                                          size_type count,
+                                          size_type result_physical) {
+    if (count == 0) return;
+    size_type remaining = count;
+    size_type src_phys = logical_to_physical(logical_first);
+    size_type src_chunk = std::min(remaining, capacity_ - src_phys);
+    size_type dst_phys = result_physical;
+    size_type dst_chunk = std::min(remaining, capacity_ - dst_phys);
+    size_type chunk = std::min(src_chunk, dst_chunk);
+    std::uninitialized_move(data_ + src_phys,
+                            data_ + src_phys + chunk,
+                            data_ + dst_phys);
+    remaining -= chunk;
+    if (remaining > 0) {
+      src_phys = (src_phys + chunk) % capacity_;
+      dst_phys = (dst_phys + chunk) % capacity_;
+      chunk = std::min(remaining, std::min(capacity_ - src_phys, capacity_ - dst_phys));
+      std::uninitialized_move(data_ + src_phys,
+                              data_ + src_phys + chunk,
+                              data_ + dst_phys);
+    }
+  }
+
+  /// @brief Applies `std::move_backward` to a logical range of elements in the
+  ///   circular buffer, overwriting the initialized slots starting at
+  ///   `result_physical - count`.
+  ///
+  /// The source range is `[logical_first, logical_first + count)`. Elements are
+  /// move-assigned to initialized slots in reverse order.
+  constexpr void move_backward_range(size_type logical_first, size_type count,
+                                     size_type result_physical) {
+    if (count == 0) return;
+    size_type dst_phys = (result_physical + capacity_ - 1) % capacity_;
+    for (size_type i = count; i > 0; --i) {
+      size_type src_phys = logical_to_physical(logical_first + i - 1);
+      data_[dst_phys] = std::move(data_[src_phys]);
+      dst_phys = (dst_phys + capacity_ - 1) % capacity_;
+    }
   }
 
   constexpr size_type logical_to_physical(size_type index) const {
@@ -698,6 +748,188 @@ class BoundedArray {
     size_type index = back_index();
     std::allocator_traits<allocator_type>::destroy(allocator_, &data_[index]);
     --size_;
+  }
+
+  /// @brief Constructs an element in place at `pos`, shifting elements to the
+  ///   right to make room.
+  ///
+  /// @tparam Args The types of the arguments forwarded to the element's
+  ///   constructor.
+  /// @param pos An iterator pointing to the insertion position.
+  /// @param args The arguments used to construct the new element.
+  /// @return An iterator to the newly constructed element.
+  /// @throw std::length_error If the array is already full.
+  template <typename... Args>
+  constexpr iterator emplace(const_iterator pos, Args&&... args) {
+    if (size_ == capacity_) {
+      throw std::length_error("BoundedArray is full");
+    }
+    size_type index = pos.index();
+    if (index > size_) {
+      throw std::out_of_range("BoundedArray iterator out of range");
+    }
+    if (index == size_) {
+      emplace_back(std::forward<Args>(args)...);
+      return iterator(this, size_ - 1);
+    }
+    size_type phys_pos = (front_index_ + index) % capacity_;
+    value_type saved(std::move(data_[phys_pos]));
+    std::allocator_traits<allocator_type>::destroy(allocator_, &data_[phys_pos]);
+    try {
+      raw_construct(phys_pos, std::forward<Args>(args)...);
+    } catch (...) {
+      raw_construct(phys_pos, std::move(saved));
+      throw;
+    }
+    for (size_type i = size_ - 1; i > index; --i) {
+      size_type src = (front_index_ + i) % capacity_;
+      size_type dst = (front_index_ + i + 1) % capacity_;
+      raw_construct(dst, std::move(data_[src]));
+      std::allocator_traits<allocator_type>::destroy(allocator_, &data_[src]);
+    }
+    size_type saved_dst = (front_index_ + index + 1) % capacity_;
+    raw_construct(saved_dst, std::move(saved));
+    ++size_;
+    return iterator(this, index);
+  }
+
+  /// @brief Inserts a copy of `value` at `pos`, shifting elements to the right
+  ///   to make room.
+  ///
+  /// @param pos An iterator pointing to the insertion position.
+  /// @param value The value to insert.
+  /// @return An iterator to the inserted element.
+  /// @throw std::length_error If the array is already full.
+  constexpr iterator insert(const_iterator pos, value_type const& value) {
+    return emplace(pos, value);
+  }
+
+  /// @brief Inserts `value` at `pos` by moving it, shifting elements to the
+  ///   right to make room.
+  ///
+  /// @param pos An iterator pointing to the insertion position.
+  /// @param value The value to insert.
+  /// @return An iterator to the inserted element.
+  /// @throw std::length_error If the array is already full.
+  constexpr iterator insert(const_iterator pos, value_type&& value) {
+    return emplace(pos, std::move(value));
+  }
+
+  /// @brief Inserts `count` copies of `value` at `pos`, shifting elements to
+  ///   the right to make room.
+  ///
+  /// @param pos An iterator pointing to the insertion position.
+  /// @param count The number of copies to insert.
+  /// @param value The value to insert.
+  /// @return An iterator to the first inserted element.
+  /// @throw std::length_error If `size_ + count` would exceed `capacity_`.
+  constexpr iterator insert(const_iterator pos, size_type count,
+                            value_type const& value) {
+    if (count == 0) {
+      return iterator(this, pos.index());
+    }
+    if (size_ + count > capacity_) {
+      throw std::length_error("BoundedArray insert fill exceeds capacity");
+    }
+    size_type index = pos.index();
+    if (index > size_) {
+      throw std::out_of_range("BoundedArray iterator out of range");
+    }
+    if (index == size_) {
+      for (size_type i = 0; i < count; ++i) {
+        emplace_back(value);
+      }
+      return iterator(this, size_ - count);
+    }
+    size_type tail_size = size_ - index;
+    for (size_type i = size_; i > index; --i) {
+      size_type src = (front_index_ + i - 1) % capacity_;
+      size_type dst = (front_index_ + i - 1 + count) % capacity_;
+      raw_construct(dst, std::move(data_[src]));
+      std::allocator_traits<allocator_type>::destroy(allocator_, &data_[src]);
+    }
+    size_type constructed = 0;
+    try {
+      for (; constructed < count; ++constructed) {
+        raw_construct((front_index_ + index + constructed) % capacity_, value);
+      }
+    } catch (...) {
+      for (size_type i = 0; i < constructed; ++i) {
+        std::allocator_traits<allocator_type>::destroy(
+            allocator_, &data_[(front_index_ + index + i) % capacity_]);
+      }
+      for (size_type i = index; i < size_; ++i) {
+        size_type src = (front_index_ + i + count) % capacity_;
+        size_type dst = (front_index_ + i) % capacity_;
+        raw_construct(dst, std::move(data_[src]));
+        std::allocator_traits<allocator_type>::destroy(allocator_, &data_[src]);
+      }
+      throw;
+    }
+    size_ += count;
+    return iterator(this, index);
+  }
+
+  template <typename InputIterator>
+    requires(!std::is_convertible_v<InputIterator, size_type>)
+  constexpr iterator insert(const_iterator pos, InputIterator first,
+                            InputIterator last) {
+    size_type count = static_cast<size_type>(std::distance(first, last));
+    if (count == 0) {
+      return iterator(this, pos.index());
+    }
+    if (size_ + count > capacity_) {
+      throw std::length_error("BoundedArray insert range exceeds capacity");
+    }
+    size_type index = pos.index();
+    if (index > size_) {
+      throw std::out_of_range("BoundedArray iterator out of range");
+    }
+    if (index == size_) {
+      for (; first != last; ++first) {
+        emplace_back(*first);
+      }
+      return iterator(this, size_ - count);
+    }
+    size_type tail_size = size_ - index;
+    for (size_type i = size_; i > index; --i) {
+      size_type src = (front_index_ + i - 1) % capacity_;
+      size_type dst = (front_index_ + i - 1 + count) % capacity_;
+      raw_construct(dst, std::move(data_[src]));
+      std::allocator_traits<allocator_type>::destroy(allocator_, &data_[src]);
+    }
+    size_type constructed = 0;
+    try {
+      for (; constructed < count; ++constructed, ++first) {
+        raw_construct((front_index_ + index + constructed) % capacity_, *first);
+      }
+    } catch (...) {
+      for (size_type i = 0; i < constructed; ++i) {
+        std::allocator_traits<allocator_type>::destroy(
+            allocator_, &data_[(front_index_ + index + i) % capacity_]);
+      }
+      for (size_type i = index; i < size_; ++i) {
+        size_type src = (front_index_ + i + count) % capacity_;
+        size_type dst = (front_index_ + i) % capacity_;
+        raw_construct(dst, std::move(data_[src]));
+        std::allocator_traits<allocator_type>::destroy(allocator_, &data_[src]);
+      }
+      throw;
+    }
+    size_ += count;
+    return iterator(this, index);
+  }
+
+  /// @brief Inserts copies of the elements in the initializer list `init` at
+  ///   `pos`, shifting elements to the right to make room.
+  ///
+  /// @param pos An iterator pointing to the insertion position.
+  /// @param init The initializer list to insert.
+  /// @return An iterator to the first inserted element.
+  /// @throw std::length_error If the insertion would exceed `capacity_`.
+  constexpr iterator insert(const_iterator pos,
+                            std::initializer_list<value_type> init) {
+    return insert(pos, init.begin(), init.end());
   }
 
   /// @brief Removes all elements from the array, leaving it empty.
