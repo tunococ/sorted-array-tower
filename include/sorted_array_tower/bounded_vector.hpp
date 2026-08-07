@@ -607,6 +607,45 @@ class BoundedVector {
     --size_;
   }
 
+  /// @brief Removes the element at the given position.
+  ///
+  /// @param pos Iterator to the element to remove. Must be dereferenceable.
+  /// @return An iterator following the removed element.
+  /// @throw std::out_of_range If `pos` is not valid.
+  constexpr iterator erase(const_iterator pos) {
+    size_type index = pos.index();
+    if (index >= size_) {
+      throw std::out_of_range("BoundedVector iterator out of range");
+    }
+    std::move(data_ + index + 1, data_ + size_, data_ + index);
+    std::allocator_traits<allocator_type>::destroy(allocator_,
+                                                   &data_[size_ - 1]);
+    --size_;
+    return iterator(this, index);
+  }
+
+  /// @brief Removes the elements in the range `[first, last)`.
+  ///
+  /// @param first Iterator to the first element to remove.
+  /// @param last Iterator following the last element to remove.
+  /// @return An iterator following the removed elements.
+  /// @throw std::out_of_range If the range is invalid.
+  constexpr iterator erase(const_iterator first, const_iterator last) {
+    size_type start = first.index();
+    size_type end = last.index();
+    if (start > end || end > size_) {
+      throw std::out_of_range("BoundedVector iterator out of range");
+    }
+    size_type count = end - start;
+    std::move(data_ + end, data_ + size_, data_ + start);
+    for (size_type i = 0; i < count; ++i) {
+      std::allocator_traits<allocator_type>::destroy(allocator_,
+                                                     &data_[size_ - 1 - i]);
+    }
+    size_ -= count;
+    return iterator(this, start);
+  }
+
   /// @brief Constructs an element in place at `pos`, shifting elements to the
   ///   right to make room.
   ///

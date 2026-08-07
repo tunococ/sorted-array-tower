@@ -306,8 +306,10 @@ TEST_CASE_TEMPLATE("comparison", T, INT_TYPES_TO_TEST) {
 
 TEST_CASE_TEMPLATE("fuzz against deque", T, INT_TYPES_TO_TEST) {
   mt19937 rng(12345);
-  uniform_int_distribution<int> op_dist(0, 1);
+  uniform_int_distribution<int> op_dist(0, 7);
   uniform_int_distribution<int> val_dist(0, 100);
+  uniform_int_distribution<int> pos_dist(0, 63);
+  uniform_int_distribution<int> count_dist(1, 3);
 
   BoundedVector<T> s(64);
   deque<T> ref;
@@ -327,6 +329,63 @@ TEST_CASE_TEMPLATE("fuzz against deque", T, INT_TYPES_TO_TEST) {
           s.pop_back();
           ref.pop_back();
         }
+        break;
+      case 2:  // insert(pos, value)
+        if (ref.size() < 64) {
+          size_t pos = pos_dist(rng) % (ref.size() + 1);
+          T v = val_dist(rng);
+          s.insert(s.begin() + pos, v);
+          ref.insert(ref.begin() + pos, v);
+        }
+        break;
+      case 3:  // insert(pos, count, value)
+        if (ref.size() < 64) {
+          size_t pos = pos_dist(rng) % (ref.size() + 1);
+          int count = count_dist(rng);
+          count = min(count, 64 - static_cast<int>(ref.size()));
+          if (count > 0) {
+            T v = val_dist(rng);
+            s.insert(s.begin() + pos, count, v);
+            ref.insert(ref.begin() + pos, count, v);
+          }
+        }
+        break;
+      case 4:  // insert(pos, first, last)
+        if (ref.size() < 64) {
+          size_t pos = pos_dist(rng) % (ref.size() + 1);
+          int count = count_dist(rng);
+          count = min(count, 64 - static_cast<int>(ref.size()));
+          if (count > 0) {
+            vector<T> v;
+            for (int i = 0; i < count; ++i) {
+              v.push_back(val_dist(rng));
+            }
+            s.insert(s.begin() + pos, v.begin(), v.end());
+            ref.insert(ref.begin() + pos, v.begin(), v.end());
+          }
+        }
+        break;
+      case 5:  // erase(pos)
+        if (!ref.empty()) {
+          size_t pos = pos_dist(rng) % ref.size();
+          s.erase(s.begin() + pos);
+          ref.erase(ref.begin() + pos);
+        }
+        break;
+      case 6:  // erase(first, last)
+        if (!ref.empty()) {
+          size_t start = pos_dist(rng) % ref.size();
+          size_t len = count_dist(rng);
+          size_t end = min(start + len, ref.size());
+          if (start < end) {
+            s.erase(s.begin() + start, s.begin() + end);
+            ref.erase(ref.begin() + start, ref.begin() + end);
+          }
+        }
+        break;
+      case 7:  // clear
+        s.clear();
+        ref.clear();
         break;
     }
     REQUIRE(s.size() == ref.size());

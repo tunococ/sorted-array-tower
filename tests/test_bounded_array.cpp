@@ -366,6 +366,139 @@ TEST_CASE_TEMPLATE("emplace_insert", T, INT_TYPES_TO_TEST) {
     CHECK_THROWS_AS(s.insert(s.begin() + 3, T(9)), out_of_range);
     CHECK_THROWS_AS(s.insert(s.begin() + 3, 1, T(9)), out_of_range);
   }
+
+  SUBCASE("emplace with source wrapping") {
+    BoundedArray<T> s(5);
+    s.push_back(T(1));
+    s.push_back(T(2));
+    s.push_back(T(3));
+    s.push_back(T(4));
+    s.pop_front();
+    s.pop_front();
+    s.pop_front();
+    s.pop_front();
+    REQUIRE(s.empty());
+    s.push_back(T(5));
+    s.push_back(T(6));
+    s.push_back(T(7));
+    REQUIRE(s.size() == 3);
+    REQUIRE(s[0] == T(5));
+    REQUIRE(s[1] == T(6));
+    REQUIRE(s[2] == T(7));
+    auto it = s.emplace(s.begin(), T(9));
+    REQUIRE(s.size() == 4);
+    REQUIRE(s[0] == T(9));
+    REQUIRE(s[1] == T(5));
+    REQUIRE(s[2] == T(6));
+    REQUIRE(s[3] == T(7));
+    REQUIRE(it == s.begin());
+  }
+
+  SUBCASE("insert fill with wrap-around") {
+    BoundedArray<T> s(6);
+    s.push_back(T(1));
+    s.push_back(T(2));
+    s.push_back(T(3));
+    s.pop_front();
+    s.push_back(T(4));
+    REQUIRE(s.size() == 3);
+    REQUIRE(s[0] == T(2));
+    REQUIRE(s[1] == T(3));
+    REQUIRE(s[2] == T(4));
+    auto it = s.insert(s.begin() + 1, 2, T(9));
+    REQUIRE(s.size() == 5);
+    REQUIRE(s[0] == T(2));
+    REQUIRE(s[1] == T(9));
+    REQUIRE(s[2] == T(9));
+    REQUIRE(s[3] == T(3));
+    REQUIRE(s[4] == T(4));
+    REQUIRE(it == s.begin() + 1);
+  }
+
+  SUBCASE("insert range with wrap-around") {
+    BoundedArray<T> s(6);
+    s.push_back(T(1));
+    s.push_back(T(2));
+    s.push_back(T(3));
+    s.pop_front();
+    s.push_back(T(4));
+    REQUIRE(s.size() == 3);
+    REQUIRE(s[0] == T(2));
+    REQUIRE(s[1] == T(3));
+    REQUIRE(s[2] == T(4));
+    vector<T> v = {T(9), T(8)};
+    auto it = s.insert(s.begin() + 1, v.begin(), v.end());
+    REQUIRE(s.size() == 5);
+    REQUIRE(s[0] == T(2));
+    REQUIRE(s[1] == T(9));
+    REQUIRE(s[2] == T(8));
+    REQUIRE(s[3] == T(3));
+    REQUIRE(s[4] == T(4));
+    REQUIRE(it == s.begin() + 1);
+  }
+
+  SUBCASE("insert with wrapping source non-wrapping destination in move_backward_range") {
+    BoundedArray<T> s(6);
+    s.push_back(T(1));
+    s.push_back(T(2));
+    s.push_back(T(3));
+    s.push_back(T(4));
+    s.pop_front();
+    s.pop_front();
+    REQUIRE(s.size() == 2);
+    REQUIRE(s[0] == T(3));
+    REQUIRE(s[1] == T(4));
+    auto it = s.insert(s.begin() + 1, T(9));
+    REQUIRE(s.size() == 3);
+    REQUIRE(s[0] == T(3));
+    REQUIRE(s[1] == T(9));
+    REQUIRE(s[2] == T(4));
+    REQUIRE(it == s.begin() + 1);
+  }
+
+  SUBCASE("insert with both wrapping source and destination in move_backward_range") {
+    BoundedArray<T> s(6);
+    s.push_back(T(1));
+    s.push_back(T(2));
+    s.push_back(T(3));
+    s.push_back(T(4));
+    s.pop_front();
+    s.pop_front();
+    s.pop_front();
+    REQUIRE(s.size() == 1);
+    REQUIRE(s[0] == T(4));
+    s.push_back(T(5));
+    s.push_back(T(6));
+    REQUIRE(s.size() == 3);
+    REQUIRE(s[0] == T(4));
+    REQUIRE(s[1] == T(5));
+    REQUIRE(s[2] == T(6));
+    auto it = s.insert(s.begin(), T(9));
+    REQUIRE(s.size() == 4);
+    REQUIRE(s[0] == T(9));
+    REQUIRE(s[1] == T(4));
+    REQUIRE(s[2] == T(5));
+    REQUIRE(s[3] == T(6));
+    REQUIRE(it == s.begin());
+  }
+
+  SUBCASE("insert with wrapping destination in uninitialized_move_range") {
+    BoundedArray<T> s(6);
+    s.push_back(T(1));
+    s.push_back(T(2));
+    s.push_back(T(3));
+    s.pop_front();
+    REQUIRE(s.size() == 2);
+    REQUIRE(s[0] == T(2));
+    REQUIRE(s[1] == T(3));
+    auto it = s.insert(s.begin() + 1, 2, T(9));
+    REQUIRE(s.size() == 4);
+    REQUIRE(s[0] == T(2));
+    REQUIRE(s[1] == T(9));
+    REQUIRE(s[2] == T(9));
+    REQUIRE(s[3] == T(3));
+    REQUIRE(it == s.begin() + 1);
+  }
 }
 
 TEST_CASE("lifetime: emplace and insert do not leak or double-free") {
@@ -543,8 +676,10 @@ TEST_CASE_TEMPLATE("comparison", T, INT_TYPES_TO_TEST) {
 
 TEST_CASE_TEMPLATE("fuzz against deque", T, INT_TYPES_TO_TEST) {
   mt19937 rng(12345);
-  uniform_int_distribution<int> op_dist(0, 3);
+  uniform_int_distribution<int> op_dist(0, 6);
   uniform_int_distribution<int> val_dist(0, 100);
+  uniform_int_distribution<int> pos_dist(0, 63);
+  uniform_int_distribution<int> count_dist(1, 3);
 
   BoundedArray<T> s(64);
   deque<T> ref;
@@ -576,6 +711,41 @@ TEST_CASE_TEMPLATE("fuzz against deque", T, INT_TYPES_TO_TEST) {
         if (!ref.empty()) {
           s.pop_back();
           ref.pop_back();
+        }
+        break;
+      case 4:  // insert(pos, value)
+        if (ref.size() < 64) {
+          size_t pos = pos_dist(rng) % (ref.size() + 1);
+          T v = val_dist(rng);
+          s.insert(s.begin() + pos, v);
+          ref.insert(ref.begin() + pos, v);
+        }
+        break;
+      case 5:  // insert(pos, count, value)
+        if (ref.size() < 64) {
+          size_t pos = pos_dist(rng) % (ref.size() + 1);
+          int count = count_dist(rng);
+          count = min(count, 64 - static_cast<int>(ref.size()));
+          if (count > 0) {
+            T v = val_dist(rng);
+            s.insert(s.begin() + pos, count, v);
+            ref.insert(ref.begin() + pos, count, v);
+          }
+        }
+        break;
+      case 6:  // insert(pos, first, last)
+        if (ref.size() < 64) {
+          size_t pos = pos_dist(rng) % (ref.size() + 1);
+          int count = count_dist(rng);
+          count = min(count, 64 - static_cast<int>(ref.size()));
+          if (count > 0) {
+            vector<T> v;
+            for (int i = 0; i < count; ++i) {
+              v.push_back(val_dist(rng));
+            }
+            s.insert(s.begin() + pos, v.begin(), v.end());
+            ref.insert(ref.begin() + pos, v.begin(), v.end());
+          }
         }
         break;
     }

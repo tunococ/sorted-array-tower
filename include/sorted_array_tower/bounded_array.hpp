@@ -257,12 +257,12 @@ class BoundedArray {
 
   constexpr size_type logical_to_physical(size_type index) const {
     assert(index < size_);
-    return (index + front_index_) % (capacity_ == 0 ? 1 : capacity_);
+    return (index + front_index_) % capacity_;
   }
 
   constexpr size_type back_index() const {
     assert(size_ > 0);
-    return (front_index_ + size_ - 1) % (capacity_ == 0 ? 1 : capacity_);
+    return (front_index_ + size_ - 1) % capacity_;
   }
 
   /// @brief Destroys `count` elements starting at physical index `first`,
@@ -773,22 +773,14 @@ class BoundedArray {
       return iterator(this, size_ - 1);
     }
     size_type phys_pos = (front_index_ + index) % capacity_;
-    value_type saved(std::move(data_[phys_pos]));
+    size_type last_phys = back_index();
+    raw_construct((front_index_ + size_) % capacity_, std::move(data_[last_phys]));
+    if (index + 1 < size_) {
+      move_backward_range(index, size_ - index - 1,
+                          (front_index_ + size_) % capacity_);
+    }
     std::allocator_traits<allocator_type>::destroy(allocator_, &data_[phys_pos]);
-    try {
-      raw_construct(phys_pos, std::forward<Args>(args)...);
-    } catch (...) {
-      raw_construct(phys_pos, std::move(saved));
-      throw;
-    }
-    for (size_type i = size_ - 1; i > index; --i) {
-      size_type src = (front_index_ + i) % capacity_;
-      size_type dst = (front_index_ + i + 1) % capacity_;
-      raw_construct(dst, std::move(data_[src]));
-      std::allocator_traits<allocator_type>::destroy(allocator_, &data_[src]);
-    }
-    size_type saved_dst = (front_index_ + index + 1) % capacity_;
-    raw_construct(saved_dst, std::move(saved));
+    raw_construct(phys_pos, std::forward<Args>(args)...);
     ++size_;
     return iterator(this, index);
   }
@@ -842,11 +834,19 @@ class BoundedArray {
       return iterator(this, size_ - count);
     }
     size_type tail_size = size_ - index;
-    for (size_type i = size_; i > index; --i) {
-      size_type src = (front_index_ + i - 1) % capacity_;
-      size_type dst = (front_index_ + i - 1 + count) % capacity_;
-      raw_construct(dst, std::move(data_[src]));
-      std::allocator_traits<allocator_type>::destroy(allocator_, &data_[src]);
+    size_type uninit_count = count < tail_size ? count : tail_size;
+    size_type init_count = tail_size - uninit_count;
+    if (uninit_count > 0) {
+      uninitialized_move_range(size_ - uninit_count, uninit_count,
+                               (front_index_ + size_ + count - uninit_count) % capacity_);
+    }
+    if (init_count > 0) {
+      move_backward_range(index, init_count,
+                          (front_index_ + size_ + count - uninit_count) % capacity_);
+    }
+    for (size_type i = 0; i < count; ++i) {
+      std::allocator_traits<allocator_type>::destroy(
+          allocator_, &data_[(front_index_ + index + i) % capacity_]);
     }
     size_type constructed = 0;
     try {
@@ -892,11 +892,19 @@ class BoundedArray {
       return iterator(this, size_ - count);
     }
     size_type tail_size = size_ - index;
-    for (size_type i = size_; i > index; --i) {
-      size_type src = (front_index_ + i - 1) % capacity_;
-      size_type dst = (front_index_ + i - 1 + count) % capacity_;
-      raw_construct(dst, std::move(data_[src]));
-      std::allocator_traits<allocator_type>::destroy(allocator_, &data_[src]);
+    size_type uninit_count = count < tail_size ? count : tail_size;
+    size_type init_count = tail_size - uninit_count;
+    if (uninit_count > 0) {
+      uninitialized_move_range(size_ - uninit_count, uninit_count,
+                               (front_index_ + size_ + count - uninit_count) % capacity_);
+    }
+    if (init_count > 0) {
+      move_backward_range(index, init_count,
+                          (front_index_ + size_ + count - uninit_count) % capacity_);
+    }
+    for (size_type i = 0; i < count; ++i) {
+      std::allocator_traits<allocator_type>::destroy(
+          allocator_, &data_[(front_index_ + index + i) % capacity_]);
     }
     size_type constructed = 0;
     try {
