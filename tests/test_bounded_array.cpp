@@ -70,6 +70,59 @@ struct Tracked {
   auto operator<=>(Tracked const& other) const = default;
 };
 
+// A type whose moves are `noexcept` (so the shift primitives never throw while
+// relocating elements) but whose copy constructor can be made to throw. This
+// lets `insert` complete its `shift_right` and then fail while constructing the
+// new element, triggering the `shift_left` rollback.
+struct ThrowingCopy {
+  static inline int alive = 0;
+  static inline bool throw_on_copy = false;
+  int value;
+
+  static void reset() {
+    alive = 0;
+    throw_on_copy = false;
+  }
+
+  ThrowingCopy() : value(0) { ++alive; }
+  ThrowingCopy(int v) : value(v) { ++alive; }
+  ThrowingCopy(ThrowingCopy const& other) : value(other.value) {
+    if (throw_on_copy) {
+      throw std::runtime_error("copy disabled");
+    }
+    ++alive;
+  }
+  ThrowingCopy(ThrowingCopy&& other) noexcept : value(other.value) {
+    other.value = -1;
+    ++alive;
+  }
+  ThrowingCopy& operator=(ThrowingCopy const&) = default;
+  ThrowingCopy& operator=(ThrowingCopy&& other) noexcept {
+    value = other.value;
+    other.value = -1;
+    return *this;
+  }
+  ~ThrowingCopy() { --alive; }
+};
+
+namespace {
+
+/// Fills `a` with values `0, 1, ..., S-1` and then rotates the front `F` times
+/// so that `front_index_ == F` and the element at logical index `i` is
+/// `(F + i) % S`.
+void setup_front(BoundedArray<ThrowingCopy>& a, std::size_t F, std::size_t S) {
+  for (std::size_t i = 0; i < S; ++i) {
+    a.emplace_back(static_cast<int>(i));
+  }
+  for (std::size_t i = 0; i < F; ++i) {
+    int value = a.front().value;
+    a.pop_front();
+    a.emplace_back(value);
+  }
+}
+
+}  // namespace
+
 TEST_SUITE_BEGIN("bounded_array");
 
 TEST_CASE_TEMPLATE("constructors", T, INT_TYPES_TO_TEST) {
@@ -1243,6 +1296,63 @@ TEST_CASE_TEMPLATE("pointer types", T, INT_TYPES_TO_TEST) {
     auto ci = cs.begin();
     static_assert(std::is_same_v<decltype(ci.operator->()), T const*>);
     REQUIRE(*ci.operator->() == T(1));
+  }
+}
+
+TEST_CASE("insert shifts the smaller neighboring range") {
+  // Enumerate every reachable (front_index_, size_, index, count) combination.
+  // A successful insert drives the forward shift (left or right), and a
+  // throwing insert drives the rollback shift.
+  for (std::size_t n = 4; n <= 10; ++n) {
+    for (std::size_t F = 0; F < n; ++F) {
+      for (std::size_t S = 1; S < n; ++S) {
+        for (std::size_t index = 0; index < S; ++index) {
+          for (std::size_t count = 1; count + S <= n; ++count) {
+            INFO("n=" << n << " F=" << F << " S=" << S << " index=" << index
+                      << " count=" << count);
+
+            // Successful insert: verifies the forward shift.
+            ThrowingCopy::reset();
+            {
+              BoundedArray<ThrowingCopy> a(n);
+              setup_front(a, F, S);
+              ThrowingCopy proto(1000);
+              a.insert(a.begin() + index, count, proto);
+
+              REQUIRE(a.size() == S + count);
+              for (std::size_t i = 0; i < index; ++i) {
+                REQUIRE(a[i].value == static_cast<int>((F + i) % S));
+              }
+              for (std::size_t i = 0; i < count; ++i) {
+                REQUIRE(a[index + i].value == 1000);
+              }
+              for (std::size_t i = index; i < S; ++i) {
+                REQUIRE(a[count + i].value == static_cast<int>((F + i) % S));
+              }
+              REQUIRE(ThrowingCopy::alive == static_cast<int>(S + count + 1));
+            }
+            REQUIRE(ThrowingCopy::alive == 0);
+
+            // Throwing insert: verifies the rollback restores the array.
+            ThrowingCopy::reset();
+            {
+              BoundedArray<ThrowingCopy> a(n);
+              setup_front(a, F, S);
+              ThrowingCopy proto(1000);
+              ThrowingCopy::throw_on_copy = true;
+              CHECK_THROWS_AS(a.insert(a.begin() + index, count, proto),
+                              std::runtime_error);
+              REQUIRE(a.size() == S);
+              for (std::size_t i = 0; i < S; ++i) {
+                REQUIRE(a[i].value == static_cast<int>((F + i) % S));
+              }
+              REQUIRE(ThrowingCopy::alive == static_cast<int>(S + 1));
+            }
+            REQUIRE(ThrowingCopy::alive == 0);
+          }
+        }
+      }
+    }
   }
 }
 

@@ -216,19 +216,23 @@ class BoundedArray {
   /// It will shift elements in the range `[src_first, src_last)` to slots in
   /// the range `[src_first + count, src_last + count)`.
   /// It assumes that all the slots in `[src_last, src_last + count)` are
-  /// uninitialized, and it will destroy all slots in `[src_first, src_first +
-  /// count)` afterwards.
+  /// uninitialized, and it will destroy all slots in
+  /// `[src_first, min(src_first + count, src_last))`.
   ///
-  /// This function does not validate any if its inputs. It is caller's
-  /// responsibility to ensure that the shift is valid.
+  /// This function does not validate any of its inputs. It is caller's
+  /// responsibility to ensure that the shift is valid, i.e.:
+  /// - `count >= 1`.
   /// - `src_last + count <= 2 * capacity_`.
-  /// - `0 <= src_last - src_first <= capacity_`.
+  /// - `0 <= src_last - src_first <= capacity_ - count`.
+  /// - All slots in `[src_first, src_last)` are initialized.
+  /// - All slots in `[src_last, src_last + count)` are uninitialized.
   ///
-  /// @param src_first The physical index of the first element (modulo
-  /// `capacity_`) to shift.
-  /// @param src_last The physical index of the last element (modulo
-  /// `capacity_`) to shift.
-  /// @param count The number of elements to shift.
+  /// @param src_first The index of the first element of the range to shift.
+  ///   This must be in `[0, capacity_ * 2)`.
+  /// @param src_last The index of the end of the range to shift.
+  ///   This must be in `[src_first, capacity_ * 2)`.
+  /// @param count The number of elements to shift. This must be in `[1,
+  ///   capacity_)`.
   constexpr void shift_right(size_type src_first, size_type src_last,
                              size_type count) {
     size_type dst_first = src_first + count;
@@ -253,7 +257,7 @@ class BoundedArray {
         }
         return;
       }
-      // dst_last -= capacity_; // Unneccsary because dst_last isn't used.
+      // dst_last -= capacity_; // Unnecessary because dst_last isn't used.
       if (dst_first < capacity_) {
         // The destination range wraps.
         /*
@@ -314,6 +318,7 @@ class BoundedArray {
         for (size_type i = 0; i < src_last; ++i) {
           std::allocator_traits<allocator_type>::destroy(allocator_, data_ + i);
         }
+        return;
       }
       // src_first >= capacity here.
       // Wrapping happens before the source range begins.
@@ -360,7 +365,7 @@ class BoundedArray {
       }
       return;
     }
-    // dst_last -= capacity_; // Unneccsary because dst_last isn't used.
+    // dst_last -= capacity_; // Unnecessary because dst_last isn't used.
     if (src_last <= capacity_) {
       /*
         src_first                    src_last
@@ -390,51 +395,14 @@ class BoundedArray {
     }
     src_last -= capacity_;
     if (dst_first < capacity_) {
-      if (uninit_src_first <= dst_first) {
-        /*
-          src_first                    src_last
-          |        uninit_src_first    |
-          |        |                   |
-          |--------|<------count--+--->|
-                                  |
-          ------capacity----------|
-                                  |
-          |<------count------>|   |
-                              |---+----|<------count------>|
-                              |                            |
-                              |                            |
-                              dst_first                    dst_last
-        */
-        size_type const tail_length = src_last;
-        size_type const src_origin = capacity_ - count;
-        std::uninitialized_move(data_, data_ + src_last, data_ + count);
-        std::uninitialized_move(data_ + uninit_src_first, data_ + capacity_,
-                                data_ + src_last);
-        std::move(data_ + src_origin, data_ + uninit_src_first, data_);
-        std::move(data_ + src_first, data_ + src_origin, data_ + dst_first);
-        for (size_type i = src_first; i < dst_first; ++i) {
-          std::allocator_traits<allocator_type>::destroy(allocator_, data_ + i);
-        }
-        return;
-      }
-      /*
-                            uninit_src_first
-        src_first           |           src_last
-        |                   |           |
-        |-------------------|<--count-->|
-
-        |<--count-->|
-                    |-------------------|<--count-->|
-                    |                               |
-                    dst_first                       dst_last
-
-      */
       if (uninit_src_first < capacity_) {
         /*
                               uninit_src_first
           src_first           |           src_last
           |                   |           |
           |-------------------|<-+count-->|
+                     |<--count-->|
+                     src_origin  |
                                  |
           ------capacity---------|
                                  |
@@ -444,12 +412,28 @@ class BoundedArray {
                       dst_first                       dst_last
 
         */
+
+        /*
+          src_first                    src_last
+          |        uninit_src_first    |
+          |        |                   |
+          |--------|<------count--+--->|
+              |<------count------>|
+              src_origin          |
+                                  |
+          ------capacity----------|
+                                  |
+          |<------count------>|   |
+                              |---+----|<------count------>|
+                              |                            |
+                              dst_first                    dst_last
+        */
+
         size_type const src_origin = capacity_ - count;
         std::uninitialized_move(data_, data_ + src_last, data_ + count);
         std::uninitialized_move(data_ + uninit_src_first, data_ + capacity_,
                                 data_ + src_last);
-        std::move_backward(data_ + src_origin, data_ + uninit_src_first,
-                           data_ + src_last);
+        std::move(data_ + src_origin, data_ + uninit_src_first, data_);
         std::move_backward(data_ + src_first, data_ + src_origin,
                            data_ + capacity_);
         for (size_type i = src_first; i < dst_first; ++i) {
@@ -568,6 +552,312 @@ class BoundedArray {
     std::move_backward(data_ + src_first, data_ + uninit_src_first,
                        data_ + src_last);
     for (size_type i = src_first; i < dst_first; ++i) {
+      std::allocator_traits<allocator_type>::destroy(allocator_, data_ + i);
+    }
+    return;
+  }
+
+  /// @brief Shifts elements in the circular buffer to the left, starting from
+  /// `dst_first + count` as the physical index (modulo `capacity_`).
+  ///
+  /// This function does not check that the shift is valid.
+  /// It will shift elements in the range `[dst_first + count, dst_last +
+  /// count)` to slots in the range `[dst_first, dst_last)`. It
+  /// assumes that all the slots in `[dst_first, dst_first + count)` are
+  /// uninitialized, and it will destroy all slots in
+  /// `[max(dst_last, dst_first + count), dst_last + count)` afterwards.
+  ///
+  /// This function does not validate any of its inputs. It is caller's
+  /// responsibility to ensure that the shift is valid, i.e.:
+  /// - `count >= 1`.
+  /// - `dst_last + count <= 2 * capacity_`.
+  /// - `0 <= dst_last - dst_first <= capacity_ - count`.
+  /// - All slots in `[dst_first, dst_first + count)` are uninitialized.
+  /// - All slots in `[dst_first + count, dst_last + count)` are initialized.
+  ///
+  /// @param dst_first The index of the first element of the shifted range.
+  ///   This must be in `[0, capacity_ * 2)`.
+  /// @param dst_last The index of the end of the shifted range.
+  ///   This must be in `[dst_first, capacity_ * 2)`.
+  /// @param count The number of elements to shift. This must be in `[1,
+  ///   capacity_)`.
+  constexpr void shift_left(size_type dst_first, size_type dst_last,
+                            size_type count) {
+    size_type src_first = dst_first + count;
+    size_type src_last = dst_last + count;
+    if (src_first >= dst_last) {
+      // If the source range does not overlap with the destination range.
+
+      if (src_last <= capacity_) {
+        // No wrapping.
+        /*
+          dst_first  dst_last
+          |----------|
+          |<---count--->|
+                        |----------|
+                        src_first  src_last
+        */
+        std::uninitialized_move(data_ + src_first, data_ + src_last,
+                                data_ + dst_first);
+        for (size_type i = src_first; i < src_last; ++i) {
+          std::allocator_traits<allocator_type>::destroy(allocator_, data_ + i);
+        }
+        return;
+      }
+      src_last -= capacity_;
+      if (src_first < capacity_) {
+        // The source range wraps.
+        /*
+          dst_first  dst_last
+          |----------|
+               |<---count--->|
+               dst_origin    |
+                             |
+          ------capacity-----|
+          |<---count--->|    |
+                        |----+-----|
+                        src_first  src_last
+        */
+
+        size_type const dst_origin = capacity_ - count;
+        std::uninitialized_move(data_ + src_first, data_ + capacity_,
+                                data_ + dst_first);
+        std::uninitialized_move(data_, data_ + src_last, data_ + dst_origin);
+        for (size_type i = src_first; i < capacity_; ++i) {
+          std::allocator_traits<allocator_type>::destroy(allocator_, data_ + i);
+        }
+        for (size_type i = 0; i < src_last; ++i) {
+          std::allocator_traits<allocator_type>::destroy(allocator_, data_ + i);
+        }
+        return;
+      }
+      src_first -= capacity_;
+      if (dst_last <= capacity_) {
+        // Wrapping happens in the gap between the two ranges.
+        /*
+          dst_first  dst_last
+          |----------|
+          ------capacity-----|
+          |<----------count---------->|
+                                      |----------|
+                                      src_first  src_last
+        */
+        std::uninitialized_move(data_ + src_first, data_ + src_last,
+                                data_ + dst_first);
+        for (size_type i = src_first; i < src_last; ++i) {
+          std::allocator_traits<allocator_type>::destroy(allocator_, data_ + i);
+        }
+        return;
+      }
+      // dst_last -= capacity_; // Unnecessary because dst_last isn't used.
+      if (dst_first < capacity_) {
+        // The destination range wraps.
+        /*
+          dst_first    dst_last
+          |---------+--|
+          -capacity-|
+          |<---count--->|
+                        |------------|
+                        src_first    src_last
+        */
+        std::uninitialized_move(data_ + src_first, data_ + count,
+                                data_ + dst_first);
+        std::uninitialized_move(data_ + count, data_ + src_last, data_);
+        for (size_type i = src_first; i < src_last; ++i) {
+          std::allocator_traits<allocator_type>::destroy(allocator_, data_ + i);
+        }
+        return;
+      }
+      // dst_first >= capacity here.
+      // Wrapping happens before the destination range begins.
+      /*
+                    dst_first   dst_last
+                    |-----------|
+        -capacity-|
+                    |<---count--->|
+                                  |------------|
+                                  src_first    src_last
+      */
+      dst_first -= capacity_;
+      std::uninitialized_move(data_ + src_first, data_ + src_last,
+                              data_ + dst_first);
+      for (size_type i = src_first; i < src_last; ++i) {
+        std::allocator_traits<allocator_type>::destroy(allocator_, data_ + i);
+      }
+      return;
+    }
+
+    // If the source range overlaps with the destination range.
+    // In this case, we have src_first < dst_last, which implies
+    // src_first < src_last - count.
+
+    size_type init_src_first = src_first + count;
+    if (src_last <= capacity_) {
+      // No wrapping.
+      /*
+        dst_first                dst_last
+        |------------------------|
+        |<----count---->|
+                        |<----count---->|--------|
+                        src_first       |        src_last
+                                        init_src_first
+      */
+      std::uninitialized_move(data_ + src_first, data_ + init_src_first,
+                              data_ + dst_first);
+      std::move(data_ + init_src_first, data_ + src_last, data_ + src_first);
+      for (size_type i = dst_last; i < src_last; ++i) {
+        std::allocator_traits<allocator_type>::destroy(allocator_, data_ + i);
+      }
+      return;
+    }
+    src_last -= capacity_;
+    if (dst_last <= capacity_) {
+      if (init_src_first <= capacity_) {
+        /*
+          dst_first              dst_last
+          |<---count--->|--------|
+                           |<---count--->|
+                           dst_origin    |
+                                         |
+          ------capacity-----------------|
+                        |<---count--->|--+-----|
+                        src_first     |        src_last
+                                      init_src_first
+        */
+        // size_type const dst_origin = capacity_ - count; // Not needed
+        std::uninitialized_move(data_ + src_first, data_ + init_src_first,
+                                data_ + dst_first);
+        std::move(data_ + init_src_first, data_ + capacity_, data_ + src_first);
+        std::move_backward(data_, data_ + src_last, data_ + dst_last);
+        for (size_type i = dst_last; i < capacity_; ++i) {
+          std::allocator_traits<allocator_type>::destroy(allocator_, data_ + i);
+        }
+        for (size_type i = 0; i < src_last; ++i) {
+          std::allocator_traits<allocator_type>::destroy(allocator_, data_ + i);
+        }
+        return;
+      }
+      init_src_first -= capacity_;
+      /*
+        dst_first              dst_last
+        |<---count--->|--------|
+                   |<---count--->|
+                   dst_origin    |
+                                 |
+        ------capacity-----------|
+                      |<---count-+->|--------|
+                      src_first     |        src_last
+                                    init_src_first
+      */
+      size_type const dst_origin = capacity_ - count;
+      std::uninitialized_move(data_ + src_first, data_ + capacity_,
+                              data_ + dst_first);
+      std::uninitialized_move(data_, data_ + init_src_first,
+                              data_ + dst_origin);
+      std::move(data_ + init_src_first, data_ + src_last, data_ + src_first);
+      for (size_type i = dst_last; i < capacity_; ++i) {
+        std::allocator_traits<allocator_type>::destroy(allocator_, data_ + i);
+      }
+      for (size_type i = 0; i < src_last; ++i) {
+        std::allocator_traits<allocator_type>::destroy(allocator_, data_ + i);
+      }
+      return;
+    }
+    dst_last -= capacity_;
+    if (init_src_first <= capacity_) {
+      /*
+        dst_first                        dst_last
+        |<---count--->|----------------+-|
+                         |<---count--->|
+                         dst_origin    |
+                                       |
+        ------capacity-----------------|
+                      |<---count--->|--+---------------|
+                      src_first     |                  src_last
+                                    init_src_first
+      */
+      size_type const dst_origin = capacity_ - count;
+      std::uninitialized_move(data_ + src_first, data_ + init_src_first,
+                              data_ + dst_first);
+      std::move(data_ + init_src_first, data_ + capacity_, data_ + src_first);
+      std::move(data_, data_ + count, data_ + dst_origin);
+      std::move(data_ + count, data_ + src_last, data_);
+      for (size_type i = dst_last; i < src_last; ++i) {
+        std::allocator_traits<allocator_type>::destroy(allocator_, data_ + i);
+      }
+      return;
+    }
+    init_src_first -= capacity_;
+    if (src_first < capacity_) {
+      /*
+        dst_first                      dst_last
+        |<---count--->|----------+-----|
+                   |<---count--->|
+                   dst_origin    |
+                                 |
+        ------capacity-----------|
+                      |<---count-+->|----------------|
+                      src_first     |                src_last
+                                    init_src_first
+      */
+
+      /*
+        dst_first              dst_last
+        |<---count--->|--+-----|
+           |<---count--->|
+           dst_origin    |
+                         |
+        ------capacity---|
+                      |<-+-count--->|--------|
+                      src_first     |        src_last
+                                    init_src_first
+      */
+      size_type const dst_origin = capacity_ - count;
+      std::uninitialized_move(data_ + src_first, data_ + capacity_,
+                              data_ + dst_first);
+      std::uninitialized_move(data_, data_ + init_src_first,
+                              data_ + dst_origin);
+      std::move(data_ + init_src_first, data_ + count, data_ + src_first);
+      std::move(data_ + count, data_ + src_last, data_);
+      for (size_type i = dst_last; i < src_last; ++i) {
+        std::allocator_traits<allocator_type>::destroy(allocator_, data_ + i);
+      }
+      return;
+    }
+    src_first -= capacity_;
+    if (dst_first < capacity_) {
+      /*
+        dst_first              dst_last
+        |<---count-+->|--------|
+                   |
+        -capacity--|
+                      |<---count--->|--------|
+                      src_first     |        src_last
+                                    init_src_first
+      */
+      std::uninitialized_move(data_ + src_first, data_ + count,
+                              data_ + dst_first);
+      std::uninitialized_move(data_ + count, data_ + init_src_first, data_);
+      std::move(data_ + init_src_first, data_ + src_last, data_ + src_first);
+      for (size_type i = dst_last; i < src_last; ++i) {
+        std::allocator_traits<allocator_type>::destroy(allocator_, data_ + i);
+      }
+      return;
+    }
+    dst_first -= capacity_;
+    /*
+                   dst_first                dst_last
+                   |------------------------|
+                   |<----count---->|
+      -capacity--|                 |
+                                   |<----count---->|--------|
+                                   src_first       |        src_last
+                                                   init_src_first
+    */
+    std::uninitialized_move(data_ + src_first, data_ + init_src_first,
+                            data_ + dst_first);
+    std::move(data_ + init_src_first, data_ + src_last, data_ + src_first);
+    for (size_type i = dst_last; i < src_last; ++i) {
       std::allocator_traits<allocator_type>::destroy(allocator_, data_ + i);
     }
     return;
@@ -1068,8 +1358,8 @@ class BoundedArray {
     --size_;
   }
 
-  /// @brief Constructs an element in place at `pos`, shifting elements to the
-  ///   right to make room.
+  /// @brief Constructs an element in place at `pos`, shifting elements to make
+  ///   room.
   ///
   /// @tparam Args The types of the arguments forwarded to the element's
   ///   constructor.
@@ -1090,23 +1380,39 @@ class BoundedArray {
       emplace_back(std::forward<Args>(args)...);
       return iterator(this, size_ - 1);
     }
-    size_type phys_pos = (front_index_ + index) % capacity_;
-    size_type last_phys = back_index();
-    raw_construct((front_index_ + size_) % capacity_,
-                  std::move(data_[last_phys]));
-    if (index + 1 < size_) {
-      move_backward_range(index, size_ - index - 1,
-                          (front_index_ + size_) % capacity_);
+    // Shift the smaller of the two neighboring ranges to make room: move the
+    // head left if `index` is closer to the front, otherwise move the tail
+    // right. Either way the freed slot ends up at logical `index`.
+    bool shift_head = index < size_ - index;
+    size_type old_front = front_index_;
+    size_type dst_first = 0;
+    if (shift_head) {
+      dst_first = (front_index_ + capacity_ - 1) % capacity_;
+      shift_left(dst_first, dst_first + index, 1);
+      front_index_ = dst_first;
+    } else {
+      shift_right(front_index_ + index, front_index_ + size_, 1);
     }
-    std::allocator_traits<allocator_type>::destroy(allocator_,
-                                                   &data_[phys_pos]);
-    raw_construct(phys_pos, std::forward<Args>(args)...);
+    try {
+      raw_construct((front_index_ + index) % capacity_,
+                    std::forward<Args>(args)...);
+    } catch (...) {
+      // Undo the shift if the element's constructor throws, so the array
+      // remains in its original state.
+      if (shift_head) {
+        shift_right(dst_first, dst_first + index, 1);
+        front_index_ = old_front;
+      } else {
+        shift_left(front_index_ + index, front_index_ + size_, 1);
+      }
+      throw;
+    }
     ++size_;
     return iterator(this, index);
   }
 
-  /// @brief Inserts a copy of `value` at `pos`, shifting elements to the right
-  ///   to make room.
+  /// @brief Inserts a copy of `value` at `pos`, shifting elements to make
+  ///   room.
   ///
   /// @param pos An iterator pointing to the insertion position.
   /// @param value The value to insert.
@@ -1116,8 +1422,8 @@ class BoundedArray {
     return emplace(pos, value);
   }
 
-  /// @brief Inserts `value` at `pos` by moving it, shifting elements to the
-  ///   right to make room.
+  /// @brief Inserts `value` at `pos` by moving it, shifting elements to make
+  ///   room.
   ///
   /// @param pos An iterator pointing to the insertion position.
   /// @param value The value to insert.
@@ -1128,7 +1434,7 @@ class BoundedArray {
   }
 
   /// @brief Inserts `count` copies of `value` at `pos`, shifting elements to
-  ///   the right to make room.
+  ///   make room.
   ///
   /// @param pos An iterator pointing to the insertion position.
   /// @param count The number of copies to insert.
@@ -1153,22 +1459,19 @@ class BoundedArray {
       }
       return iterator(this, size_ - count);
     }
-    size_type tail_size = size_ - index;
-    size_type uninit_count = count < tail_size ? count : tail_size;
-    size_type init_count = tail_size - uninit_count;
-    if (uninit_count > 0) {
-      uninitialized_move_range(
-          size_ - uninit_count, uninit_count,
-          (front_index_ + size_ + count - uninit_count) % capacity_);
-    }
-    if (init_count > 0) {
-      move_backward_range(
-          index, init_count,
-          (front_index_ + size_ + count - uninit_count) % capacity_);
-    }
-    for (size_type i = 0; i < count; ++i) {
-      std::allocator_traits<allocator_type>::destroy(
-          allocator_, &data_[(front_index_ + index + i) % capacity_]);
+    // Shift the smaller of the two neighboring ranges to make room: move the
+    // head left if `index` is closer to the front, otherwise move the tail
+    // right. Either way the freed `count` slots end up at logical `[index,
+    // index + count)`.
+    bool shift_head = index < size_ - index;
+    size_type old_front = front_index_;
+    size_type dst_first = 0;
+    if (shift_head) {
+      dst_first = (front_index_ + capacity_ - count) % capacity_;
+      shift_left(dst_first, dst_first + index, count);
+      front_index_ = dst_first;
+    } else {
+      shift_right(front_index_ + index, front_index_ + size_, count);
     }
     size_type constructed = 0;
     try {
@@ -1180,11 +1483,11 @@ class BoundedArray {
         std::allocator_traits<allocator_type>::destroy(
             allocator_, &data_[(front_index_ + index + i) % capacity_]);
       }
-      for (size_type i = index; i < size_; ++i) {
-        size_type src = (front_index_ + i + count) % capacity_;
-        size_type dst = (front_index_ + i) % capacity_;
-        raw_construct(dst, std::move(data_[src]));
-        std::allocator_traits<allocator_type>::destroy(allocator_, &data_[src]);
+      if (shift_head) {
+        shift_right(dst_first, dst_first + index, count);
+        front_index_ = old_front;
+      } else {
+        shift_left(front_index_ + index, front_index_ + size_, count);
       }
       throw;
     }
@@ -1213,22 +1516,19 @@ class BoundedArray {
       }
       return iterator(this, size_ - count);
     }
-    size_type tail_size = size_ - index;
-    size_type uninit_count = count < tail_size ? count : tail_size;
-    size_type init_count = tail_size - uninit_count;
-    if (uninit_count > 0) {
-      uninitialized_move_range(
-          size_ - uninit_count, uninit_count,
-          (front_index_ + size_ + count - uninit_count) % capacity_);
-    }
-    if (init_count > 0) {
-      move_backward_range(
-          index, init_count,
-          (front_index_ + size_ + count - uninit_count) % capacity_);
-    }
-    for (size_type i = 0; i < count; ++i) {
-      std::allocator_traits<allocator_type>::destroy(
-          allocator_, &data_[(front_index_ + index + i) % capacity_]);
+    // Shift the smaller of the two neighboring ranges to make room: move the
+    // head left if `index` is closer to the front, otherwise move the tail
+    // right. Either way the freed `count` slots end up at logical `[index,
+    // index + count)`.
+    bool shift_head = index < size_ - index;
+    size_type old_front = front_index_;
+    size_type dst_first = 0;
+    if (shift_head) {
+      dst_first = (front_index_ + capacity_ - count) % capacity_;
+      shift_left(dst_first, dst_first + index, count);
+      front_index_ = dst_first;
+    } else {
+      shift_right(front_index_ + index, front_index_ + size_, count);
     }
     size_type constructed = 0;
     try {
@@ -1240,11 +1540,11 @@ class BoundedArray {
         std::allocator_traits<allocator_type>::destroy(
             allocator_, &data_[(front_index_ + index + i) % capacity_]);
       }
-      for (size_type i = index; i < size_; ++i) {
-        size_type src = (front_index_ + i + count) % capacity_;
-        size_type dst = (front_index_ + i) % capacity_;
-        raw_construct(dst, std::move(data_[src]));
-        std::allocator_traits<allocator_type>::destroy(allocator_, &data_[src]);
+      if (shift_head) {
+        shift_right(dst_first, dst_first + index, count);
+        front_index_ = old_front;
+      } else {
+        shift_left(front_index_ + index, front_index_ + size_, count);
       }
       throw;
     }
@@ -1253,7 +1553,7 @@ class BoundedArray {
   }
 
   /// @brief Inserts copies of the elements in the initializer list `init` at
-  ///   `pos`, shifting elements to the right to make room.
+  ///   `pos`, shifting elements to make room.
   ///
   /// @param pos An iterator pointing to the insertion position.
   /// @param init The initializer list to insert.
