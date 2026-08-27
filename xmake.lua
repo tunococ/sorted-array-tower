@@ -97,6 +97,28 @@ target("bounded_vector")
     add_headerfiles("include/(sorted_array_tower/bounded_vector.hpp)")
     add_includedirs("include", { public = true })
 
+target("binary_heap")
+    if has_config("use_modules") then
+        set_kind("static")
+        -- .cppm interface files must be made public.
+        add_files("modules/binary_heap.cppm", { public = true })
+    else
+        set_kind("headeronly")
+    end
+    add_headerfiles("include/(sorted_array_tower/binary_heap.hpp)")
+    add_includedirs("include", { public = true })
+
+target("merge_iterator")
+    if has_config("use_modules") then
+        set_kind("static")
+        -- .cppm interface files must be made public.
+        add_files("modules/merge_iterator.cppm", { public = true })
+    else
+        set_kind("headeronly")
+    end
+    add_headerfiles("include/(sorted_array_tower/merge_iterator.hpp)")
+    add_includedirs("include", { public = true })
+
 target("sorted_array_tower")
     if has_config("use_modules") then
         set_kind("static")
@@ -108,7 +130,9 @@ target("sorted_array_tower")
     add_deps(
         "skip_array",
         "bounded_array",
-        "bounded_vector"
+        "bounded_vector",
+        "binary_heap",
+        "merge_iterator"
     )
     add_headerfiles("include/(sorted_array_tower/sorted_array_tower.hpp)")
     add_includedirs("include", { public = true })
@@ -120,7 +144,9 @@ target("tests")
         "tests/test_main.cpp",
         "tests/test_skip_array.cpp",
         "tests/test_bounded_array.cpp",
-        "tests/test_bounded_vector.cpp"
+        "tests/test_bounded_vector.cpp",
+        "tests/test_binary_heap.cpp",
+        "tests/test_merge_iterator.cpp"
     )
     add_deps("sorted_array_tower")
     if has_config("use_modules") then

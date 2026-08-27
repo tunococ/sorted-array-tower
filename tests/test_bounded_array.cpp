@@ -22,6 +22,107 @@ using namespace std;
 
 #define INT_TYPES_TO_TEST int, size_t
 
+// A type that tracks the number of live instances to detect leaks and
+// double-destruction. `alive` is incremented by every constructor and
+// decremented by the destructor; a correct container leaves it at zero and
+// never drives it negative. Each object also carries a sentinel so that a
+// second destruction of the same object is caught even while other instances
+// remain alive.
+struct Tracked {
+  static inline int alive = 0;
+  static constexpr int kDestroyed = -424242;
+
+  int value;
+
+  Tracked() : value(0) {
+    ++alive;
+  }
+  Tracked(int v) : value(v) {
+    ++alive;
+  }
+  Tracked(Tracked const& other) : value(other.value) {
+    ++alive;
+  }
+  Tracked(Tracked&& other) noexcept : value(other.value) {
+    other.value = -1;
+    ++alive;
+  }
+  Tracked& operator=(Tracked const& other) {
+    value = other.value;
+    return *this;
+  }
+  Tracked& operator=(Tracked&& other) noexcept {
+    value = other.value;
+    other.value = -1;
+    return *this;
+  }
+  ~Tracked() {
+    REQUIRE(value != kDestroyed);
+    REQUIRE(alive > 0);
+    value = kDestroyed;
+    --alive;
+  }
+
+  static void reset() {
+    alive = 0;
+  }
+
+  auto operator<=>(Tracked const& other) const = default;
+};
+
+// A type whose moves are `noexcept` (so the shift primitives never throw while
+// relocating elements) but whose copy constructor can be made to throw. This
+// lets `insert` complete its `shift_right` and then fail while constructing the
+// new element, triggering the `shift_left` rollback.
+struct ThrowingCopy {
+  static inline int alive = 0;
+  static inline bool throw_on_copy = false;
+  int value;
+
+  static void reset() {
+    alive = 0;
+    throw_on_copy = false;
+  }
+
+  ThrowingCopy() : value(0) { ++alive; }
+  ThrowingCopy(int v) : value(v) { ++alive; }
+  ThrowingCopy(ThrowingCopy const& other) : value(other.value) {
+    if (throw_on_copy) {
+      throw std::runtime_error("copy disabled");
+    }
+    ++alive;
+  }
+  ThrowingCopy(ThrowingCopy&& other) noexcept : value(other.value) {
+    other.value = -1;
+    ++alive;
+  }
+  ThrowingCopy& operator=(ThrowingCopy const&) = default;
+  ThrowingCopy& operator=(ThrowingCopy&& other) noexcept {
+    value = other.value;
+    other.value = -1;
+    return *this;
+  }
+  ~ThrowingCopy() { --alive; }
+};
+
+namespace {
+
+/// Fills `a` with values `0, 1, ..., S-1` and then rotates the front `F` times
+/// so that `front_index_ == F` and the element at logical index `i` is
+/// `(F + i) % S`.
+void setup_front(BoundedArray<ThrowingCopy>& a, std::size_t F, std::size_t S) {
+  for (std::size_t i = 0; i < S; ++i) {
+    a.emplace_back(static_cast<int>(i));
+  }
+  for (std::size_t i = 0; i < F; ++i) {
+    int value = a.front().value;
+    a.pop_front();
+    a.emplace_back(value);
+  }
+}
+
+}  // namespace
+
 TEST_SUITE_BEGIN("bounded_array");
 
 TEST_CASE_TEMPLATE("constructors", T, INT_TYPES_TO_TEST) {
@@ -182,6 +283,358 @@ TEST_CASE_TEMPLATE("emplace", T, INT_TYPES_TO_TEST) {
   REQUIRE(s[1] == T(1));
 }
 
+TEST_CASE_TEMPLATE("emplace_insert", T, INT_TYPES_TO_TEST) {
+  SUBCASE("emplace at begin") {
+    BoundedArray<T> s(5, {T(1), T(2), T(3)});
+    auto it = s.emplace(s.begin(), T(9));
+    REQUIRE(s.size() == 4);
+    REQUIRE(s[0] == T(9));
+    REQUIRE(s[1] == T(1));
+    REQUIRE(s[2] == T(2));
+    REQUIRE(s[3] == T(3));
+    REQUIRE(it == s.begin());
+  }
+
+  SUBCASE("emplace in middle") {
+    BoundedArray<T> s(5, {T(1), T(2), T(3)});
+    auto it = s.emplace(s.begin() + 1, T(9));
+    REQUIRE(s.size() == 4);
+    REQUIRE(s[0] == T(1));
+    REQUIRE(s[1] == T(9));
+    REQUIRE(s[2] == T(2));
+    REQUIRE(s[3] == T(3));
+    REQUIRE(it == s.begin() + 1);
+  }
+
+  SUBCASE("emplace at end") {
+    BoundedArray<T> s(5, {T(1), T(2), T(3)});
+    auto it = s.emplace(s.end(), T(9));
+    REQUIRE(s.size() == 4);
+    REQUIRE(s[0] == T(1));
+    REQUIRE(s[1] == T(2));
+    REQUIRE(s[2] == T(3));
+    REQUIRE(s[3] == T(9));
+    REQUIRE(it == s.end() - 1);
+  }
+
+  SUBCASE("emplace after wrap-around") {
+    BoundedArray<T> s(5);
+    s.push_back(T(1));
+    s.push_back(T(2));
+    s.push_back(T(3));
+    s.pop_front();
+    s.push_back(T(4));
+    REQUIRE(s.size() == 3);
+    REQUIRE(s[0] == T(2));
+    REQUIRE(s[1] == T(3));
+    REQUIRE(s[2] == T(4));
+    auto it = s.emplace(s.begin() + 1, T(9));
+    REQUIRE(s.size() == 4);
+    REQUIRE(s[0] == T(2));
+    REQUIRE(s[1] == T(9));
+    REQUIRE(s[2] == T(3));
+    REQUIRE(s[3] == T(4));
+    REQUIRE(it == s.begin() + 1);
+  }
+
+  SUBCASE("insert lvalue") {
+    BoundedArray<T> s(5, {T(1), T(2), T(3)});
+    auto it = s.insert(s.begin() + 1, T(9));
+    REQUIRE(s.size() == 4);
+    REQUIRE(s[1] == T(9));
+    REQUIRE(it == s.begin() + 1);
+  }
+
+  SUBCASE("insert rvalue") {
+    BoundedArray<T> s(5, {T(1), T(2), T(3)});
+    T val = T(9);
+    auto it = s.insert(s.begin() + 1, std::move(val));
+    REQUIRE(s.size() == 4);
+    REQUIRE(s[1] == T(9));
+    REQUIRE(it == s.begin() + 1);
+  }
+
+  SUBCASE("insert fill") {
+    BoundedArray<T> s(6, {T(1), T(2), T(3)});
+    auto it = s.insert(s.begin() + 1, 2, T(9));
+    REQUIRE(s.size() == 5);
+    REQUIRE(s[0] == T(1));
+    REQUIRE(s[1] == T(9));
+    REQUIRE(s[2] == T(9));
+    REQUIRE(s[3] == T(2));
+    REQUIRE(s[4] == T(3));
+    REQUIRE(it == s.begin() + 1);
+  }
+
+  SUBCASE("insert range") {
+    BoundedArray<T> s(6, {T(1), T(2), T(3)});
+    vector<T> v = {T(9), T(8)};
+    auto it = s.insert(s.begin() + 1, v.begin(), v.end());
+    REQUIRE(s.size() == 5);
+    REQUIRE(s[0] == T(1));
+    REQUIRE(s[1] == T(9));
+    REQUIRE(s[2] == T(8));
+    REQUIRE(s[3] == T(2));
+    REQUIRE(s[4] == T(3));
+    REQUIRE(it == s.begin() + 1);
+  }
+
+  SUBCASE("insert initializer_list") {
+    BoundedArray<T> s(6, {T(1), T(2), T(3)});
+    auto it = s.insert(s.begin() + 1, {T(9), T(8)});
+    REQUIRE(s.size() == 5);
+    REQUIRE(s[0] == T(1));
+    REQUIRE(s[1] == T(9));
+    REQUIRE(s[2] == T(8));
+    REQUIRE(s[3] == T(2));
+    REQUIRE(s[4] == T(3));
+    REQUIRE(it == s.begin() + 1);
+  }
+
+  SUBCASE("insert at end") {
+    BoundedArray<T> s(5, {T(1), T(2), T(3)});
+    auto it = s.insert(s.end(), T(9));
+    REQUIRE(s.size() == 4);
+    REQUIRE(s[3] == T(9));
+    REQUIRE(it == s.end() - 1);
+  }
+
+  SUBCASE("full then emplace throws") {
+    BoundedArray<T> s(3, {T(1), T(2), T(3)});
+    CHECK_THROWS_AS(s.emplace(s.begin(), T(9)), length_error);
+  }
+
+  SUBCASE("full then insert throws") {
+    BoundedArray<T> s(3, {T(1), T(2), T(3)});
+    CHECK_THROWS_AS(s.insert(s.begin(), T(9)), length_error);
+    CHECK_THROWS_AS(s.insert(s.begin(), 1, T(9)), length_error);
+    vector<T> v = {T(9)};
+    CHECK_THROWS_AS(s.insert(s.begin(), v.begin(), v.end()), length_error);
+    CHECK_THROWS_AS(s.insert(s.begin(), {T(9)}), length_error);
+  }
+
+  SUBCASE("iterator out of range throws") {
+    BoundedArray<T> s(5, {T(1), T(2)});
+    CHECK_THROWS_AS(s.emplace(s.begin() + 3, T(9)), out_of_range);
+    CHECK_THROWS_AS(s.insert(s.begin() + 3, T(9)), out_of_range);
+    CHECK_THROWS_AS(s.insert(s.begin() + 3, 1, T(9)), out_of_range);
+  }
+
+  SUBCASE("emplace with source wrapping") {
+    BoundedArray<T> s(5);
+    s.push_back(T(1));
+    s.push_back(T(2));
+    s.push_back(T(3));
+    s.push_back(T(4));
+    s.pop_front();
+    s.pop_front();
+    s.pop_front();
+    s.pop_front();
+    REQUIRE(s.empty());
+    s.push_back(T(5));
+    s.push_back(T(6));
+    s.push_back(T(7));
+    REQUIRE(s.size() == 3);
+    REQUIRE(s[0] == T(5));
+    REQUIRE(s[1] == T(6));
+    REQUIRE(s[2] == T(7));
+    auto it = s.emplace(s.begin(), T(9));
+    REQUIRE(s.size() == 4);
+    REQUIRE(s[0] == T(9));
+    REQUIRE(s[1] == T(5));
+    REQUIRE(s[2] == T(6));
+    REQUIRE(s[3] == T(7));
+    REQUIRE(it == s.begin());
+  }
+
+  SUBCASE("insert fill with wrap-around") {
+    BoundedArray<T> s(6);
+    s.push_back(T(1));
+    s.push_back(T(2));
+    s.push_back(T(3));
+    s.pop_front();
+    s.push_back(T(4));
+    REQUIRE(s.size() == 3);
+    REQUIRE(s[0] == T(2));
+    REQUIRE(s[1] == T(3));
+    REQUIRE(s[2] == T(4));
+    auto it = s.insert(s.begin() + 1, 2, T(9));
+    REQUIRE(s.size() == 5);
+    REQUIRE(s[0] == T(2));
+    REQUIRE(s[1] == T(9));
+    REQUIRE(s[2] == T(9));
+    REQUIRE(s[3] == T(3));
+    REQUIRE(s[4] == T(4));
+    REQUIRE(it == s.begin() + 1);
+  }
+
+  SUBCASE("insert range with wrap-around") {
+    BoundedArray<T> s(6);
+    s.push_back(T(1));
+    s.push_back(T(2));
+    s.push_back(T(3));
+    s.pop_front();
+    s.push_back(T(4));
+    REQUIRE(s.size() == 3);
+    REQUIRE(s[0] == T(2));
+    REQUIRE(s[1] == T(3));
+    REQUIRE(s[2] == T(4));
+    vector<T> v = {T(9), T(8)};
+    auto it = s.insert(s.begin() + 1, v.begin(), v.end());
+    REQUIRE(s.size() == 5);
+    REQUIRE(s[0] == T(2));
+    REQUIRE(s[1] == T(9));
+    REQUIRE(s[2] == T(8));
+    REQUIRE(s[3] == T(3));
+    REQUIRE(s[4] == T(4));
+    REQUIRE(it == s.begin() + 1);
+  }
+
+  SUBCASE("insert with wrapping source non-wrapping destination in move_backward_range") {
+    BoundedArray<T> s(6);
+    s.push_back(T(1));
+    s.push_back(T(2));
+    s.push_back(T(3));
+    s.push_back(T(4));
+    s.pop_front();
+    s.pop_front();
+    REQUIRE(s.size() == 2);
+    REQUIRE(s[0] == T(3));
+    REQUIRE(s[1] == T(4));
+    auto it = s.insert(s.begin() + 1, T(9));
+    REQUIRE(s.size() == 3);
+    REQUIRE(s[0] == T(3));
+    REQUIRE(s[1] == T(9));
+    REQUIRE(s[2] == T(4));
+    REQUIRE(it == s.begin() + 1);
+  }
+
+  SUBCASE("insert with both wrapping source and destination in move_backward_range") {
+    BoundedArray<T> s(6);
+    s.push_back(T(1));
+    s.push_back(T(2));
+    s.push_back(T(3));
+    s.push_back(T(4));
+    s.pop_front();
+    s.pop_front();
+    s.pop_front();
+    REQUIRE(s.size() == 1);
+    REQUIRE(s[0] == T(4));
+    s.push_back(T(5));
+    s.push_back(T(6));
+    REQUIRE(s.size() == 3);
+    REQUIRE(s[0] == T(4));
+    REQUIRE(s[1] == T(5));
+    REQUIRE(s[2] == T(6));
+    auto it = s.insert(s.begin(), T(9));
+    REQUIRE(s.size() == 4);
+    REQUIRE(s[0] == T(9));
+    REQUIRE(s[1] == T(4));
+    REQUIRE(s[2] == T(5));
+    REQUIRE(s[3] == T(6));
+    REQUIRE(it == s.begin());
+  }
+
+  SUBCASE("insert with wrapping destination in uninitialized_move_range") {
+    BoundedArray<T> s(6);
+    s.push_back(T(1));
+    s.push_back(T(2));
+    s.push_back(T(3));
+    s.pop_front();
+    REQUIRE(s.size() == 2);
+    REQUIRE(s[0] == T(2));
+    REQUIRE(s[1] == T(3));
+    auto it = s.insert(s.begin() + 1, 2, T(9));
+    REQUIRE(s.size() == 4);
+    REQUIRE(s[0] == T(2));
+    REQUIRE(s[1] == T(9));
+    REQUIRE(s[2] == T(9));
+    REQUIRE(s[3] == T(3));
+    REQUIRE(it == s.begin() + 1);
+  }
+}
+
+TEST_CASE("lifetime: emplace and insert do not leak or double-free") {
+  SUBCASE("emplace destroys all elements on scope exit") {
+    {
+      BoundedArray<Tracked> s(8);
+      for (int i = 0; i < 3; ++i) {
+        s.push_back(Tracked(i));
+      }
+      s.emplace(s.begin() + 1, 99);
+      REQUIRE(Tracked::alive == 4);
+    }
+    REQUIRE(Tracked::alive == 0);
+  }
+
+  SUBCASE("emplace in middle destroys all elements on scope exit") {
+    {
+      BoundedArray<Tracked> s(8);
+      for (int i = 0; i < 4; ++i) {
+        s.push_back(Tracked(i));
+      }
+      s.emplace(s.begin() + 2, 99);
+      REQUIRE(Tracked::alive == 5);
+    }
+    REQUIRE(Tracked::alive == 0);
+  }
+
+  SUBCASE("insert fill destroys all elements on scope exit") {
+    {
+      BoundedArray<Tracked> s(8);
+      for (int i = 0; i < 3; ++i) {
+        s.push_back(Tracked(i));
+      }
+      s.insert(s.begin() + 1, 2, Tracked(99));
+      REQUIRE(Tracked::alive == 5);
+    }
+    REQUIRE(Tracked::alive == 0);
+  }
+
+  SUBCASE("insert range destroys all elements on scope exit") {
+    {
+      BoundedArray<Tracked> s(8);
+      for (int i = 0; i < 3; ++i) {
+        s.push_back(Tracked(i));
+      }
+      std::vector<Tracked> v = {Tracked(99), Tracked(98)};
+      s.insert(s.begin() + 1, v.begin(), v.end());
+      REQUIRE(Tracked::alive == 7);
+    }
+    REQUIRE(Tracked::alive == 0);
+  }
+
+  SUBCASE("emplace with wrap-around moves elements without double-free") {
+    {
+      BoundedArray<Tracked> s(5);
+      s.push_back(Tracked(1));
+      s.push_back(Tracked(2));
+      s.push_back(Tracked(3));
+      s.pop_front();
+      s.push_back(Tracked(4));
+      REQUIRE(Tracked::alive == 3);
+      s.emplace(s.begin() + 1, 99);
+      REQUIRE(Tracked::alive == 4);
+    }
+    REQUIRE(Tracked::alive == 0);
+  }
+
+  SUBCASE("insert fill with wrap-around moves elements without double-free") {
+    {
+      BoundedArray<Tracked> s(5);
+      s.push_back(Tracked(1));
+      s.push_back(Tracked(2));
+      s.push_back(Tracked(3));
+      s.pop_front();
+      s.push_back(Tracked(4));
+      REQUIRE(Tracked::alive == 3);
+      s.insert(s.begin() + 1, 2, Tracked(99));
+      REQUIRE(Tracked::alive == 5);
+    }
+    REQUIRE(Tracked::alive == 0);
+  }
+}
+
 TEST_CASE_TEMPLATE("set_capacity", T, INT_TYPES_TO_TEST) {
   BoundedArray<T> s(8);
   for (T i = 0; i < 5; ++i) {
@@ -276,8 +729,10 @@ TEST_CASE_TEMPLATE("comparison", T, INT_TYPES_TO_TEST) {
 
 TEST_CASE_TEMPLATE("fuzz against deque", T, INT_TYPES_TO_TEST) {
   mt19937 rng(12345);
-  uniform_int_distribution<int> op_dist(0, 3);
+  uniform_int_distribution<int> op_dist(0, 6);
   uniform_int_distribution<int> val_dist(0, 100);
+  uniform_int_distribution<int> pos_dist(0, 63);
+  uniform_int_distribution<int> count_dist(1, 3);
 
   BoundedArray<T> s(64);
   deque<T> ref;
@@ -309,6 +764,41 @@ TEST_CASE_TEMPLATE("fuzz against deque", T, INT_TYPES_TO_TEST) {
         if (!ref.empty()) {
           s.pop_back();
           ref.pop_back();
+        }
+        break;
+      case 4:  // insert(pos, value)
+        if (ref.size() < 64) {
+          size_t pos = pos_dist(rng) % (ref.size() + 1);
+          T v = val_dist(rng);
+          s.insert(s.begin() + pos, v);
+          ref.insert(ref.begin() + pos, v);
+        }
+        break;
+      case 5:  // insert(pos, count, value)
+        if (ref.size() < 64) {
+          size_t pos = pos_dist(rng) % (ref.size() + 1);
+          int count = count_dist(rng);
+          count = min(count, 64 - static_cast<int>(ref.size()));
+          if (count > 0) {
+            T v = val_dist(rng);
+            s.insert(s.begin() + pos, count, v);
+            ref.insert(ref.begin() + pos, count, v);
+          }
+        }
+        break;
+      case 6:  // insert(pos, first, last)
+        if (ref.size() < 64) {
+          size_t pos = pos_dist(rng) % (ref.size() + 1);
+          int count = count_dist(rng);
+          count = min(count, 64 - static_cast<int>(ref.size()));
+          if (count > 0) {
+            vector<T> v;
+            for (int i = 0; i < count; ++i) {
+              v.push_back(val_dist(rng));
+            }
+            s.insert(s.begin() + pos, v.begin(), v.end());
+            ref.insert(ref.begin() + pos, v.begin(), v.end());
+          }
         }
         break;
     }
@@ -490,53 +980,6 @@ TEST_CASE_TEMPLATE("assign", T, INT_TYPES_TO_TEST) {
 // double-destruction. `alive` is incremented by every constructor and
 // decremented by the destructor; a correct container leaves it at zero and
 // never drives it negative. Each object also carries a sentinel so that a
-// second destruction of the same object is caught even while other instances
-// remain alive.
-struct Tracked {
-  static inline int alive = 0;
-  static constexpr int kDestroyed = -424242;
-
-  int value;
-
-  Tracked() : value(0) {
-    ++alive;
-  }
-  Tracked(int v) : value(v) {
-    ++alive;
-  }
-  Tracked(Tracked const& other) : value(other.value) {
-    ++alive;
-  }
-  Tracked(Tracked&& other) noexcept : value(other.value) {
-    other.value = -1;
-    ++alive;
-  }
-  Tracked& operator=(Tracked const& other) {
-    value = other.value;
-    return *this;
-  }
-  Tracked& operator=(Tracked&& other) noexcept {
-    value = other.value;
-    other.value = -1;
-    return *this;
-  }
-  ~Tracked() {
-    // A destroyed object is poisoned with a sentinel; seeing it again means
-    // this exact object was destroyed twice, which the global `alive` count
-    // alone would miss whenever other instances are still alive.
-    REQUIRE(value != kDestroyed);
-    REQUIRE(alive > 0);
-    value = kDestroyed;
-    --alive;
-  }
-
-  static void reset() {
-    alive = 0;
-  }
-
-  auto operator<=>(Tracked const& other) const = default;
-};
-
 TEST_CASE("lifetime: no leaks or double-free with non-trivial type") {
   Tracked::reset();
 
@@ -853,6 +1296,63 @@ TEST_CASE_TEMPLATE("pointer types", T, INT_TYPES_TO_TEST) {
     auto ci = cs.begin();
     static_assert(std::is_same_v<decltype(ci.operator->()), T const*>);
     REQUIRE(*ci.operator->() == T(1));
+  }
+}
+
+TEST_CASE("insert shifts the smaller neighboring range") {
+  // Enumerate every reachable (front_index_, size_, index, count) combination.
+  // A successful insert drives the forward shift (left or right), and a
+  // throwing insert drives the rollback shift.
+  for (std::size_t n = 4; n <= 10; ++n) {
+    for (std::size_t F = 0; F < n; ++F) {
+      for (std::size_t S = 1; S < n; ++S) {
+        for (std::size_t index = 0; index < S; ++index) {
+          for (std::size_t count = 1; count + S <= n; ++count) {
+            INFO("n=" << n << " F=" << F << " S=" << S << " index=" << index
+                      << " count=" << count);
+
+            // Successful insert: verifies the forward shift.
+            ThrowingCopy::reset();
+            {
+              BoundedArray<ThrowingCopy> a(n);
+              setup_front(a, F, S);
+              ThrowingCopy proto(1000);
+              a.insert(a.begin() + index, count, proto);
+
+              REQUIRE(a.size() == S + count);
+              for (std::size_t i = 0; i < index; ++i) {
+                REQUIRE(a[i].value == static_cast<int>((F + i) % S));
+              }
+              for (std::size_t i = 0; i < count; ++i) {
+                REQUIRE(a[index + i].value == 1000);
+              }
+              for (std::size_t i = index; i < S; ++i) {
+                REQUIRE(a[count + i].value == static_cast<int>((F + i) % S));
+              }
+              REQUIRE(ThrowingCopy::alive == static_cast<int>(S + count + 1));
+            }
+            REQUIRE(ThrowingCopy::alive == 0);
+
+            // Throwing insert: verifies the rollback restores the array.
+            ThrowingCopy::reset();
+            {
+              BoundedArray<ThrowingCopy> a(n);
+              setup_front(a, F, S);
+              ThrowingCopy proto(1000);
+              ThrowingCopy::throw_on_copy = true;
+              CHECK_THROWS_AS(a.insert(a.begin() + index, count, proto),
+                              std::runtime_error);
+              REQUIRE(a.size() == S);
+              for (std::size_t i = 0; i < S; ++i) {
+                REQUIRE(a[i].value == static_cast<int>((F + i) % S));
+              }
+              REQUIRE(ThrowingCopy::alive == static_cast<int>(S + 1));
+            }
+            REQUIRE(ThrowingCopy::alive == 0);
+          }
+        }
+      }
+    }
   }
 }
 

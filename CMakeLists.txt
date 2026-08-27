@@ -153,6 +153,93 @@ else()
 endif()
 
 
+add_library(binary_heap-legacy INTERFACE)
+target_sources(binary_heap-legacy
+  INTERFACE
+    FILE_SET HEADERS
+      FILES include/sorted_array_tower/binary_heap.hpp
+      BASE_DIRS include
+)
+
+if(NOT SORTED_ARRAY_TOWER_USE_MODULES)
+  add_library(binary_heap INTERFACE)
+  target_link_libraries(binary_heap
+    INTERFACE
+      binary_heap-legacy
+  )
+else()
+  add_library(binary_heap)
+  target_compile_features(binary_heap PUBLIC cxx_std_20)
+  target_link_libraries(binary_heap
+    PUBLIC
+      binary_heap-legacy
+  )
+  target_sources(binary_heap
+    PUBLIC
+      FILE_SET CXX_MODULES
+        FILES modules/binary_heap.cppm
+  )
+endif()
+
+
+add_library(merge_iterator-legacy INTERFACE)
+target_sources(merge_iterator-legacy
+  INTERFACE
+    FILE_SET HEADERS
+      FILES include/sorted_array_tower/merge_iterator.hpp
+      BASE_DIRS include
+)
+
+if(NOT SORTED_ARRAY_TOWER_USE_MODULES)
+  add_library(merge_iterator INTERFACE)
+  target_link_libraries(merge_iterator
+    INTERFACE
+      merge_iterator-legacy
+  )
+else()
+  add_library(merge_iterator)
+  target_compile_features(merge_iterator PUBLIC cxx_std_20)
+  target_link_libraries(merge_iterator
+    PUBLIC
+      merge_iterator-legacy
+  )
+  target_sources(merge_iterator
+    PUBLIC
+      FILE_SET CXX_MODULES
+        FILES modules/merge_iterator.cppm
+  )
+endif()
+
+
+add_library(merge-legacy INTERFACE)
+target_sources(merge-legacy
+  INTERFACE
+    FILE_SET HEADERS
+      FILES include/sorted_array_tower/merge.hpp
+      BASE_DIRS include
+)
+
+if(NOT SORTED_ARRAY_TOWER_USE_MODULES)
+  add_library(merge INTERFACE)
+  target_link_libraries(merge
+    INTERFACE
+      merge-legacy
+  )
+else()
+  add_library(merge)
+  target_compile_features(merge PUBLIC cxx_std_20)
+  target_link_libraries(merge
+    PUBLIC
+      merge-legacy
+  )
+  target_sources(merge
+    PUBLIC
+      FILE_SET CXX_MODULES
+        FILES modules/merge.cppm
+  )
+endif()
+
+
 ### TEMPLATE_BLOCK: Umbrella library
 #
 # "All" target that includes all libraries above.
@@ -169,6 +256,9 @@ target_link_libraries(sorted_array_tower-legacy
     skip_array
     bounded_array
     bounded_vector
+    binary_heap
+    merge_iterator
+    merge
 )
 
 if(NOT SORTED_ARRAY_TOWER_USE_MODULES)
@@ -381,7 +471,7 @@ endif()
 
 # Installation rules
 if(SORTED_ARRAY_TOWER_USE_MODULES)
-  install(TARGETS bounded_array bounded_vector sorted_array_tower
+  install(TARGETS bounded_array bounded_vector binary_heap sorted_array_tower
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
     RUNTIME DESTINATION bin
@@ -391,7 +481,7 @@ if(SORTED_ARRAY_TOWER_USE_MODULES)
     DESTINATION include
   )
 else()
-  install(TARGETS bounded_array bounded_vector sorted_array_tower
+  install(TARGETS bounded_array bounded_vector binary_heap sorted_array_tower
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
     RUNTIME DESTINATION bin

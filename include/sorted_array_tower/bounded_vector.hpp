@@ -107,6 +107,10 @@ class BoundedVector {
       return (*vector_)[index_ + n];
     }
 
+    constexpr size_type index() const noexcept {
+      return index_;
+    }
+
     constexpr Iterator& operator++() {
       ++index_;
       return *this;
@@ -510,6 +514,10 @@ class BoundedVector {
     reallocate(new_capacity);
   }
 
+  constexpr void reserve(size_type new_capacity) {
+    return set_capacity(new_capacity);
+  }
+
   /// @brief Accesses the element at the given logical index.
   constexpr reference operator[](size_type index) {
     return data_[index];
@@ -597,6 +605,183 @@ class BoundedVector {
     std::allocator_traits<allocator_type>::destroy(allocator_,
                                                    &data_[size_ - 1]);
     --size_;
+  }
+
+  /// @brief Removes the element at the given position.
+  ///
+  /// @param pos Iterator to the element to remove. Must be dereferenceable.
+  /// @return An iterator following the removed element.
+  /// @throw std::out_of_range If `pos` is not valid.
+  constexpr iterator erase(const_iterator pos) {
+    size_type index = pos.index();
+    if (index >= size_) {
+      throw std::out_of_range("BoundedVector iterator out of range");
+    }
+    std::move(data_ + index + 1, data_ + size_, data_ + index);
+    std::allocator_traits<allocator_type>::destroy(allocator_,
+                                                   &data_[size_ - 1]);
+    --size_;
+    return iterator(this, index);
+  }
+
+  /// @brief Removes the elements in the range `[first, last)`.
+  ///
+  /// @param first Iterator to the first element to remove.
+  /// @param last Iterator following the last element to remove.
+  /// @return An iterator following the removed elements.
+  /// @throw std::out_of_range If the range is invalid.
+  constexpr iterator erase(const_iterator first, const_iterator last) {
+    size_type start = first.index();
+    size_type end = last.index();
+    if (start > end || end > size_) {
+      throw std::out_of_range("BoundedVector iterator out of range");
+    }
+    size_type count = end - start;
+    std::move(data_ + end, data_ + size_, data_ + start);
+    for (size_type i = 0; i < count; ++i) {
+      std::allocator_traits<allocator_type>::destroy(allocator_,
+                                                     &data_[size_ - 1 - i]);
+    }
+    size_ -= count;
+    return iterator(this, start);
+  }
+
+  /// @brief Constructs an element in place at `pos`, shifting elements to the
+  ///   right to make room.
+  ///
+  /// @tparam Args The types of the arguments forwarded to the element's
+  ///   constructor.
+  /// @param pos An iterator pointing to the insertion position.
+  /// @param args The arguments used to construct the new element.
+  /// @return An iterator to the newly constructed element.
+  /// @throw std::length_error If the vector is already full.
+  template <typename... Args>
+  iterator emplace(const_iterator pos, Args&&... args) {
+    if (size_ == capacity_) {
+      throw std::length_error("BoundedVector is full");
+    }
+    size_type index = pos.index();
+    if (index > size_) {
+      throw std::out_of_range("BoundedVector iterator out of range");
+    }
+    if (index < size_) {
+      raw_construct(size_, std::move(data_[size_ - 1]));
+      if (index < size_ - 1) {
+        std::move_backward(data_ + index, data_ + size_ - 1,
+                           data_ + size_);
+      }
+      std::allocator_traits<allocator_type>::destroy(allocator_,
+                                                     &data_[index]);
+    }
+    raw_construct(index, std::forward<Args>(args)...);
+    ++size_;
+    return iterator(this, index);
+  }
+
+  iterator insert(const_iterator pos, value_type const& value) {
+    return emplace(pos, value);
+  }
+
+  iterator insert(const_iterator pos, value_type&& value) {
+    return emplace(pos, std::move(value));
+  }
+
+  constexpr iterator insert(const_iterator pos, size_type count,
+                            value_type const& value) {
+    if (count == 0) {
+      return iterator(this, pos.index());
+    }
+    if (size_ + count > capacity_) {
+      throw std::length_error("BoundedVector insert fill exceeds capacity");
+    }
+    size_type index = pos.index();
+    if (index > size_) {
+      throw std::out_of_range("BoundedVector iterator out of range");
+    }
+    size_type tail_size = size_ - index;
+    size_type uninit_count = count < tail_size ? count : tail_size;
+    size_type init_count = tail_size - uninit_count;
+    if (uninit_count > 0) {
+      std::uninitialized_move(data_ + size_ - uninit_count,
+                              data_ + size_,
+                              data_ + size_ + count - uninit_count);
+    }
+    if (init_count > 0) {
+      std::move_backward(data_ + index,
+                         data_ + size_ - uninit_count,
+                         data_ + size_ + count - uninit_count);
+    }
+    for (size_type i = 0; i < count; ++i) {
+      std::allocator_traits<allocator_type>::destroy(allocator_,
+                                                     &data_[index + i]);
+    }
+    size_type constructed = 0;
+    try {
+      for (; constructed < count; ++constructed) {
+        raw_construct(index + constructed, value);
+      }
+    } catch (...) {
+      std::move(data_ + index + count, data_ + size_ + count, data_ + index);
+      for (size_type i = size_; i < size_ + count; ++i) {
+        std::allocator_traits<allocator_type>::destroy(allocator_, &data_[i]);
+      }
+      throw;
+    }
+    size_ += count;
+    return iterator(this, index);
+  }
+
+  template <typename InputIterator>
+    requires(!std::is_convertible_v<InputIterator, size_type>)
+  constexpr iterator insert(const_iterator pos, InputIterator first,
+                            InputIterator last) {
+    size_type count = static_cast<size_type>(std::distance(first, last));
+    if (count == 0) {
+      return iterator(this, pos.index());
+    }
+    if (size_ + count > capacity_) {
+      throw std::length_error("BoundedVector insert range exceeds capacity");
+    }
+    size_type index = pos.index();
+    if (index > size_) {
+      throw std::out_of_range("BoundedVector iterator out of range");
+    }
+    size_type tail_size = size_ - index;
+    size_type uninit_count = count < tail_size ? count : tail_size;
+    size_type init_count = tail_size - uninit_count;
+    if (uninit_count > 0) {
+      std::uninitialized_move(data_ + size_ - uninit_count,
+                              data_ + size_,
+                              data_ + size_ + count - uninit_count);
+    }
+    if (init_count > 0) {
+      std::move_backward(data_ + index,
+                         data_ + size_ - uninit_count,
+                         data_ + size_ + count - uninit_count);
+    }
+    for (size_type i = 0; i < count; ++i) {
+      std::allocator_traits<allocator_type>::destroy(allocator_,
+                                                     &data_[index + i]);
+    }
+    size_type constructed = 0;
+    try {
+      for (; constructed < count; ++constructed, ++first) {
+        raw_construct(index + constructed, *first);
+      }
+    } catch (...) {
+      std::move(data_ + index + count, data_ + size_ + count, data_ + index);
+      for (size_type i = size_; i < size_ + count; ++i) {
+        std::allocator_traits<allocator_type>::destroy(allocator_, &data_[i]);
+      }
+      throw;
+    }
+    size_ += count;
+    return iterator(this, index);
+  }
+
+  constexpr iterator insert(const_iterator pos,
+                            std::initializer_list<value_type> init) {
+    return insert(pos, init.begin(), init.end());
   }
 
   /// @brief Replaces the contents with `count` copies of `value`.

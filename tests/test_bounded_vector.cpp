@@ -132,6 +132,100 @@ TEST_CASE_TEMPLATE("emplace", T, INT_TYPES_TO_TEST) {
   REQUIRE(s[0] == T(1));
 }
 
+TEST_CASE_TEMPLATE("emplace_insert", T, INT_TYPES_TO_TEST) {
+  SUBCASE("emplace at begin") {
+    BoundedVector<T> s(5, {T(1), T(2), T(3)});
+    auto it = s.emplace(s.begin(), T(9));
+    REQUIRE(s.size() == 4);
+    REQUIRE(s[0] == T(9));
+    REQUIRE(s[1] == T(1));
+    REQUIRE(it == s.begin());
+  }
+
+  SUBCASE("emplace in middle") {
+    BoundedVector<T> s(5, {T(1), T(2), T(3)});
+    auto it = s.emplace(s.begin() + 1, T(9));
+    REQUIRE(s.size() == 4);
+    REQUIRE(s[0] == T(1));
+    REQUIRE(s[1] == T(9));
+    REQUIRE(s[2] == T(2));
+    REQUIRE(it == s.begin() + 1);
+  }
+
+  SUBCASE("emplace at end") {
+    BoundedVector<T> s(5, {T(1), T(2), T(3)});
+    auto it = s.emplace(s.end(), T(9));
+    REQUIRE(s.size() == 4);
+    REQUIRE(s[3] == T(9));
+    REQUIRE(it == s.end() - 1);
+  }
+
+  SUBCASE("insert lvalue") {
+    BoundedVector<T> s(5, {T(1), T(2), T(3)});
+    auto it = s.insert(s.begin() + 1, T(9));
+    REQUIRE(s.size() == 4);
+    REQUIRE(s[1] == T(9));
+    REQUIRE(it == s.begin() + 1);
+  }
+
+  SUBCASE("insert rvalue") {
+    BoundedVector<T> s(5, {T(1), T(2), T(3)});
+    T val = T(9);
+    auto it = s.insert(s.begin() + 1, std::move(val));
+    REQUIRE(s.size() == 4);
+    REQUIRE(s[1] == T(9));
+    REQUIRE(it == s.begin() + 1);
+  }
+
+  SUBCASE("insert fill") {
+    BoundedVector<T> s(6, {T(1), T(2), T(3)});
+    auto it = s.insert(s.begin() + 1, 2, T(9));
+    REQUIRE(s.size() == 5);
+    REQUIRE(s[1] == T(9));
+    REQUIRE(s[2] == T(9));
+    REQUIRE(it == s.begin() + 1);
+  }
+
+  SUBCASE("insert range") {
+    BoundedVector<T> s(6, {T(1), T(2), T(3)});
+    vector<T> v = {T(9), T(8)};
+    auto it = s.insert(s.begin() + 1, v.begin(), v.end());
+    REQUIRE(s.size() == 5);
+    REQUIRE(s[1] == T(9));
+    REQUIRE(s[2] == T(8));
+    REQUIRE(it == s.begin() + 1);
+  }
+
+  SUBCASE("insert initializer_list") {
+    BoundedVector<T> s(6, {T(1), T(2), T(3)});
+    auto it = s.insert(s.begin() + 1, {T(9), T(8)});
+    REQUIRE(s.size() == 5);
+    REQUIRE(s[1] == T(9));
+    REQUIRE(s[2] == T(8));
+    REQUIRE(it == s.begin() + 1);
+  }
+
+  SUBCASE("full then emplace throws") {
+    BoundedVector<T> s(3, {T(1), T(2), T(3)});
+    CHECK_THROWS_AS(s.emplace(s.begin(), T(9)), length_error);
+  }
+
+  SUBCASE("full then insert throws") {
+    BoundedVector<T> s(3, {T(1), T(2), T(3)});
+    CHECK_THROWS_AS(s.insert(s.begin(), T(9)), length_error);
+    CHECK_THROWS_AS(s.insert(s.begin(), 1, T(9)), length_error);
+    vector<T> v = {T(9)};
+    CHECK_THROWS_AS(s.insert(s.begin(), v.begin(), v.end()), length_error);
+    CHECK_THROWS_AS(s.insert(s.begin(), {T(9)}), length_error);
+  }
+
+  SUBCASE("iterator out of range throws") {
+    BoundedVector<T> s(5, {T(1), T(2)});
+    CHECK_THROWS_AS(s.emplace(s.begin() + 3, T(9)), out_of_range);
+    CHECK_THROWS_AS(s.insert(s.begin() + 3, T(9)), out_of_range);
+  }
+}
+
 TEST_CASE_TEMPLATE("set_capacity", T, INT_TYPES_TO_TEST) {
   BoundedVector<T> s(8);
   for (T i = 0; i < 5; ++i) {
@@ -212,8 +306,10 @@ TEST_CASE_TEMPLATE("comparison", T, INT_TYPES_TO_TEST) {
 
 TEST_CASE_TEMPLATE("fuzz against deque", T, INT_TYPES_TO_TEST) {
   mt19937 rng(12345);
-  uniform_int_distribution<int> op_dist(0, 1);
+  uniform_int_distribution<int> op_dist(0, 7);
   uniform_int_distribution<int> val_dist(0, 100);
+  uniform_int_distribution<int> pos_dist(0, 63);
+  uniform_int_distribution<int> count_dist(1, 3);
 
   BoundedVector<T> s(64);
   deque<T> ref;
@@ -233,6 +329,63 @@ TEST_CASE_TEMPLATE("fuzz against deque", T, INT_TYPES_TO_TEST) {
           s.pop_back();
           ref.pop_back();
         }
+        break;
+      case 2:  // insert(pos, value)
+        if (ref.size() < 64) {
+          size_t pos = pos_dist(rng) % (ref.size() + 1);
+          T v = val_dist(rng);
+          s.insert(s.begin() + pos, v);
+          ref.insert(ref.begin() + pos, v);
+        }
+        break;
+      case 3:  // insert(pos, count, value)
+        if (ref.size() < 64) {
+          size_t pos = pos_dist(rng) % (ref.size() + 1);
+          int count = count_dist(rng);
+          count = min(count, 64 - static_cast<int>(ref.size()));
+          if (count > 0) {
+            T v = val_dist(rng);
+            s.insert(s.begin() + pos, count, v);
+            ref.insert(ref.begin() + pos, count, v);
+          }
+        }
+        break;
+      case 4:  // insert(pos, first, last)
+        if (ref.size() < 64) {
+          size_t pos = pos_dist(rng) % (ref.size() + 1);
+          int count = count_dist(rng);
+          count = min(count, 64 - static_cast<int>(ref.size()));
+          if (count > 0) {
+            vector<T> v;
+            for (int i = 0; i < count; ++i) {
+              v.push_back(val_dist(rng));
+            }
+            s.insert(s.begin() + pos, v.begin(), v.end());
+            ref.insert(ref.begin() + pos, v.begin(), v.end());
+          }
+        }
+        break;
+      case 5:  // erase(pos)
+        if (!ref.empty()) {
+          size_t pos = pos_dist(rng) % ref.size();
+          s.erase(s.begin() + pos);
+          ref.erase(ref.begin() + pos);
+        }
+        break;
+      case 6:  // erase(first, last)
+        if (!ref.empty()) {
+          size_t start = pos_dist(rng) % ref.size();
+          size_t len = count_dist(rng);
+          size_t end = min(start + len, ref.size());
+          if (start < end) {
+            s.erase(s.begin() + start, s.begin() + end);
+            ref.erase(ref.begin() + start, ref.begin() + end);
+          }
+        }
+        break;
+      case 7:  // clear
+        s.clear();
+        ref.clear();
         break;
     }
     REQUIRE(s.size() == ref.size());
@@ -582,6 +735,81 @@ TEST_CASE("lifetime: no leaks or double-free with non-trivial type") {
       REQUIRE(Tracked::alive == 2);
       s.resize(6, Tracked(9));
       REQUIRE(Tracked::alive == 6);
+    }
+    REQUIRE(Tracked::alive == 0);
+  }
+}
+
+TEST_CASE("lifetime: emplace and insert do not leak or double-free") {
+  SUBCASE("emplace destroys all elements on scope exit") {
+    {
+      BoundedVector<Tracked> s(8);
+      for (int i = 0; i < 3; ++i) {
+        s.push_back(Tracked(i));
+      }
+      s.emplace(s.begin() + 1, 99);
+      REQUIRE(Tracked::alive == 4);
+    }
+    REQUIRE(Tracked::alive == 0);
+  }
+
+  SUBCASE("emplace in middle destroys all elements on scope exit") {
+    {
+      BoundedVector<Tracked> s(8);
+      for (int i = 0; i < 4; ++i) {
+        s.push_back(Tracked(i));
+      }
+      s.emplace(s.begin() + 2, 99);
+      REQUIRE(Tracked::alive == 5);
+    }
+    REQUIRE(Tracked::alive == 0);
+  }
+
+  SUBCASE("insert fill destroys all elements on scope exit") {
+    {
+      BoundedVector<Tracked> s(8);
+      for (int i = 0; i < 3; ++i) {
+        s.push_back(Tracked(i));
+      }
+      s.insert(s.begin() + 1, 2, Tracked(99));
+      REQUIRE(Tracked::alive == 5);
+    }
+    REQUIRE(Tracked::alive == 0);
+  }
+
+  SUBCASE("insert range destroys all elements on scope exit") {
+    {
+      BoundedVector<Tracked> s(8);
+      for (int i = 0; i < 3; ++i) {
+        s.push_back(Tracked(i));
+      }
+      std::vector<Tracked> v = {Tracked(99), Tracked(98)};
+      s.insert(s.begin() + 1, v.begin(), v.end());
+      REQUIRE(Tracked::alive == 7);
+    }
+    REQUIRE(Tracked::alive == 0);
+  }
+
+  SUBCASE("emplace with large tail moves last element without double-free") {
+    {
+      BoundedVector<Tracked> s(8);
+      for (int i = 0; i < 5; ++i) {
+        s.push_back(Tracked(i));
+      }
+      s.emplace(s.begin(), 99);
+      REQUIRE(Tracked::alive == 6);
+    }
+    REQUIRE(Tracked::alive == 0);
+  }
+
+  SUBCASE("insert fill with large tail moves last elements without double-free") {
+    {
+      BoundedVector<Tracked> s(8);
+      for (int i = 0; i < 5; ++i) {
+        s.push_back(Tracked(i));
+      }
+      s.insert(s.begin(), 2, Tracked(99));
+      REQUIRE(Tracked::alive == 7);
     }
     REQUIRE(Tracked::alive == 0);
   }
